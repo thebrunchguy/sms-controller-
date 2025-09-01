@@ -713,3 +713,35 @@ async def admin_dashboard():
     """
     
     return HTMLResponse(content=html_content)
+
+@app.get("/admin/debug")
+async def debug_airtable():
+    """Debug endpoint to see what's in Airtable"""
+    try:
+        # Get all people from the current table
+        people = airtable.get_all_people()
+        
+        # Get basic info about what we found
+        debug_info = {
+            "table_name": os.getenv("AIRTABLE_PEOPLE_TABLE", "People"),
+            "base_id": os.getenv("AIRTABLE_BASE_ID", "unknown"),
+            "total_records": len(people),
+            "sample_records": []
+        }
+        
+        # Show first 5 records as samples
+        for i, person in enumerate(people[:5]):
+            fields = person.get('fields', {})
+            debug_info["sample_records"].append({
+                "id": person['id'],
+                "name": fields.get('Name', 'No name'),
+                "phone": fields.get('Phone', 'No phone'),
+                "company": fields.get('Company', 'No company'),
+                "all_fields": list(fields.keys())
+            })
+        
+        return debug_info
+        
+    except Exception as e:
+        return {"error": str(e), "traceback": str(e.__traceback__)}
+
