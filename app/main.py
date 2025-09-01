@@ -440,7 +440,7 @@ def get_monthly_stats():
 def get_due_people():
     """Get people due for check-in this month"""
     try:
-        due_people = scheduler.get_people_due_for_checkin()
+        due_people = airtable.get_all_people()
         return {
             "ok": True, 
             "count": len(due_people),
@@ -508,7 +508,7 @@ async def search_people(query: str):
     """Search for people by name"""
     try:
         # Get all people from Airtable
-        people = scheduler.get_people_due_for_checkin()
+        people = airtable.get_all_people()
         
         # Search for people by name (case-insensitive)
         query_lower = query.lower()

@@ -227,3 +227,13 @@ def append_to_transcript(checkin_id: str, message: str) -> bool:
     except Exception as e:
         print(f"Error appending to transcript for checkin {checkin_id}: {e}")
         return False
+
+def get_all_people() -> List[Dict]:
+    """Get all people from Airtable"""
+    try:
+        endpoint = f"{AIRTABLE_PEOPLE_TABLE}"
+        response = _make_request("GET", endpoint)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting all people: {e}")
+        return []
