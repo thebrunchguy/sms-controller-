@@ -3,6 +3,7 @@ import json
 from datetime import datetime, date
 from typing import Dict, Any
 from fastapi import FastAPI, Form, Request, HTTPException
+from fastapi.responses import HTMLResponse
 from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms
 
 app = FastAPI()
@@ -461,7 +462,6 @@ def get_overdue_people():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting overdue people: {str(e)}")
 
-
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -469,5 +469,156 @@ async def root():
 
 @app.get("/admin")
 async def admin_dashboard():
-    """Simple admin interface"""
-    return {"message": "Admin interface - coming soon!"}
+    """Admin web interface"""
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Admin Dashboard - Kobro.co</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #333; text-align: center; margin-bottom: 30px; }
+            h2 { color: #555; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+            .form-group { margin: 20px 0; }
+            label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+            input, select { padding: 10px; width: 100%; max-width: 400px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+            button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+            button:hover { background: #0056b3; }
+            .result { margin: 20px 0; padding: 15px; border-radius: 4px; font-weight: bold; }
+            .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+            .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+            .form-section { background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 6px; border-left: 4px solid #007bff; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎛️ Admin Dashboard</h1>
+            
+            <div class="form-section">
+                <h2>🎂 Add Birthday</h2>
+                <form action="/admin/add-birthday" method="post" onsubmit="return submitForm(this, event)">
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" name="name" required placeholder="Enter exact name as in Airtable">
+                    </div>
+                    <div class="form-group">
+                        <label>Birthday:</label>
+                        <input type="date" name="birthday" required>
+                    </div>
+                    <button type="submit">Add Birthday</button>
+                </form>
+            </div>
+            
+            <div class="form-section">
+                <h2>💼 Change Role</h2>
+                <form action="/admin/change-role" method="post" onsubmit="return submitForm(this, event)">
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" name="name" required placeholder="Enter exact name as in Airtable">
+                    </div>
+                    <div class="form-group">
+                        <label>New Role:</label>
+                        <input type="text" name="new_role" required placeholder="e.g., Senior Developer">
+                    </div>
+                    <button type="submit">Change Role</button>
+                </form>
+            </div>
+            
+            <div class="form-section">
+                <h2>🏢 Change Company</h2>
+                <form action="/admin/change-company" method="post" onsubmit="return submitForm(this, event)">
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" name="name" required placeholder="Enter exact name as in Airtable">
+                    </div>
+                    <div class="form-group">
+                        <label>New Company:</label>
+                        <input type="text" name="new_company" required placeholder="e.g., Google">
+                    </div>
+                    <button type="submit">Change Company</button>
+                </form>
+            </div>
+        </div>
+        
+        <script>
+            async function submitForm(form, event) {
+                event.preventDefault();
+                
+                const formData = new FormData(form);
+                const action = form.action;
+                
+                try {
+                    const response = await fetch(action, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    // Show result
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result ' + (result.success ? 'success' : 'error');
+                    resultDiv.textContent = result.message;
+                    
+                    form.parentNode.insertBefore(resultDiv, form.nextSibling);
+                    
+                    // Clear form if successful
+                    if (result.success) {
+                        form.reset();
+                    }
+                    
+                    // Remove result after 5 seconds
+                    setTimeout(() => {
+                        resultDiv.remove();
+                    }, 5000);
+                    
+                } catch (error) {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = '❌ Error: ' + error.message;
+                    form.parentNode.insertBefore(resultDiv, form.nextSibling);
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_content)
+
+@app.post("/admin/add-birthday")
+async def admin_add_birthday(name: str = Form(...), birthday: str = Form(...)):
+    """Add birthday - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "add_birthday",
+        "name": name,
+        "birthday": birthday
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
+
+@app.post("/admin/change-role")
+async def admin_change_role(name: str = Form(...), new_role: str = Form(...)):
+    """Change role - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "change_role", 
+        "name": name,
+        "new_role": new_role
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
+
+@app.post("/admin/change-company")
+async def admin_change_company(name: str = Form(...), new_company: str = Form(...)):
+    """Change company - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "change_company",
+        "name": name, 
+        "new_company": new_company
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
