@@ -1,0 +1,6 @@
+.env
+config/config.env
+config/production.env
+__pycache__/
+*.pyc
+.DS_Store

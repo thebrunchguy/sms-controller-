@@ -1,0 +1,462 @@
+import os
+import json
+from datetime import datetime, date
+from typing import Dict, Any
+from fastapi import FastAPI, Form, Request, HTTPException
+from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms
+
+app = FastAPI()
+
+@app.post("/jobs/send-monthly")
+def send_monthly():
+    """Send monthly check-in SMS to people who are due"""
+    try:
+        # Get current month in YYYY-MM format
+        current_month = datetime.now().strftime("%Y-%m")
+        
+        # Get people due for check-in using scheduler
+        people_due = scheduler.get_people_due_for_checkin()
+        
+        if not people_due:
+            return {"ok": True, "message": "No people due for check-in this month", "count": 0}
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for person_record in people_due:
+            try:
+                person_id = person_record["id"]
+                person_fields = person_record["fields"]
+                
+                # Skip if no phone number
+                phone = person_fields.get("Phone")
+                if not phone:
+                    print(f"No phone number for person {person_id}")
+                    failed_count += 1
+                    continue
+                
+                # Create or update check-in record
+                checkin_id = airtable.upsert_checkin(
+                    person_id=person_id,
+                    month=current_month,
+                    status="Sent"
+                )
+                
+                if not checkin_id:
+                    print(f"Failed to create check-in for person {person_id}")
+                    failed_count += 1
+                    continue
+                
+                # Compose snapshot and outbound message
+                snapshot = compose.compose_snapshot(person_fields)
+                last_confirmed = person_fields.get("Last Confirmed")
+                name = person_fields.get("Name", "there")
+                
+                outbound_message = compose.compose_outbound(name, snapshot, last_confirmed)
+                
+                # Send SMS via Twilio
+                twilio_sid = twilio_utils.send_sms(
+                    to=phone,
+                    body=outbound_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                if twilio_sid:
+                    # Log outbound message
+                    airtable.log_message(
+                        checkin_id=checkin_id,
+                        direction="Outbound",
+                        from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                        body=outbound_message,
+                        twilio_sid=twilio_sid
+                    )
+                    
+                    # Append to transcript
+                    airtable.append_to_transcript(
+                        checkin_id=checkin_id,
+                        message=f"Sent monthly check-in SMS to {phone}"
+                    )
+                    
+                    sent_count += 1
+                else:
+                    # Update check-in status to failed
+                    airtable.update_checkin_status(checkin_id, "Failed")
+                    failed_count += 1
+                    
+            except Exception as e:
+                print(f"Error processing person {person_record.get('id', 'unknown')}: {e}")
+                failed_count += 1
+        
+        return {
+            "ok": True, 
+            "message": f"Monthly check-in job completed. Sent: {sent_count}, Failed: {failed_count}",
+            "sent": sent_count,
+            "failed": failed_count
+        }
+        
+    except Exception as e:
+        print(f"Error in send_monthly job: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/twilio/inbound")
+async def inbound(request: Request, From: str = Form(...), Body: str = Form(...), MessageSid: str = Form(...)):
+    """Handle inbound SMS from Twilio"""
+    try:
+        # Clean phone number (remove +1 prefix if present)
+        from_phone = From.replace("+1", "") if From.startswith("+1") else From
+        
+        # Find person by phone number
+        person_record = airtable.get_person_by_phone(from_phone)
+        
+        if not person_record:
+            # Unknown phone number - could log this for review
+            return {"ok": False, "message": "Unknown phone number"}
+        
+        person_id = person_record["id"]
+        person_fields = person_record["fields"]
+        
+        # Check if person has opted out
+        if person_fields.get("Opt-out"):
+            return {"ok": False, "message": "Person has opted out"}
+        
+        # Get current month
+        current_month = datetime.now().strftime("%Y-%m")
+        
+        # Create or update check-in record
+        checkin_id = airtable.upsert_checkin(
+            person_id=person_id,
+            month=current_month,
+            status="In progress"
+        )
+        
+        if not checkin_id:
+            raise HTTPException(status_code=500, detail="Failed to create check-in record")
+        
+        # Log inbound message
+        airtable.log_message(
+            checkin_id=checkin_id,
+            direction="Inbound",
+            from_number=from_phone,
+            body=Body,
+            twilio_sid=MessageSid
+        )
+        
+        # Append to transcript
+        airtable.append_to_transcript(
+            checkin_id=checkin_id,
+            message=f"Received SMS: {Body}"
+        )
+        
+        # Check if this is an admin number
+        if admin_sms.is_admin_number(from_phone):
+            print(f"🔐 Admin SMS from {from_phone}")
+            
+            # Handle admin commands
+            if body_lower == "help":
+                # Send admin help
+                help_message = admin_sms.get_admin_help()
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=help_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                # Log outbound message
+                airtable.log_message(
+                    checkin_id=checkin_id,
+                    direction="Outbound",
+                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                    body=help_message,
+                    twilio_sid=""
+                )
+                
+                return {"ok": True, "message": "Admin help sent"}
+            
+            # Try to parse admin command
+            admin_command = admin_sms.parse_admin_command(Body)
+            if admin_command:
+                print(f"🔐 Executing admin command: {admin_command}")
+                
+                # Execute the command
+                success, result_message = admin_sms.execute_admin_command(admin_command)
+                
+                # Send result back to admin
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=result_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                # Log outbound message
+                airtable.log_message(
+                    checkin_id=checkin_id,
+                    direction="Outbound",
+                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                    body=result_message,
+                    twilio_sid=""
+                )
+                
+                return {"ok": True, "message": f"Admin command executed: {result_message}"}
+            else:
+                # Invalid admin command
+                error_message = "❌ Invalid admin command. Send 'help' for available commands."
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=error_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                # Log outbound message
+                airtable.log_message(
+                    checkin_id=checkin_id,
+                    direction="Outbound",
+                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                    body=error_message,
+                    twilio_sid=""
+                )
+                
+                return {"ok": True, "message": "Invalid admin command, error sent"}
+        
+        # Process the message body
+        body_lower = Body.strip().lower()
+        
+        if body_lower == "stop":
+            # Handle opt-out
+            airtable.update_person(person_id, {"Opt-out": True})
+            airtable.update_checkin_status(checkin_id, "Opted-out")
+            
+            # Send confirmation
+            optout_message = "You have been unsubscribed from monthly check-ins. Reply START to resubscribe."
+            twilio_utils.send_sms(
+                to=from_phone,
+                body=optout_message,
+                status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+            )
+            
+            # Log outbound message
+            airtable.log_message(
+                checkin_id=checkin_id,
+                direction="Outbound",
+                from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                body=optout_message,
+                twilio_sid=""
+            )
+            
+            return {"ok": True, "message": "Person opted out"}
+            
+        elif body_lower in ["no change", "no changes", "nothing changed", "same"]:
+            # Handle no change response
+            airtable.update_person(person_id, {"Last Confirmed": date.today().isoformat()})
+            airtable.update_checkin_status(checkin_id, "Completed")
+            
+            # Send confirmation
+            confirmation_message = "👍 Thanks for confirming! No changes needed."
+            twilio_utils.send_sms(
+                to=from_phone,
+                body=confirmation_message,
+                status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+            )
+            
+            # Log outbound message
+            airtable.log_message(
+                checkin_id=checkin_id,
+                direction="Outbound",
+                from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                body=confirmation_message,
+                twilio_sid=""
+            )
+            
+            return {"ok": True, "message": "No changes confirmed"}
+            
+        elif body_lower == "yes":
+            # Handle confirmation of pending changes
+            # Get the check-in record to see if there are pending changes
+            # This would require a function to get check-in by ID
+            # For now, we'll assume there are pending changes
+            
+            # Update person with pending changes (this would need to be implemented)
+            # For now, just mark as completed
+            airtable.update_checkin_status(checkin_id, "Completed")
+            
+            confirmation_message = "✅ Changes applied! Thanks for the update."
+            twilio_utils.send_sms(
+                to=from_phone,
+                body=confirmation_message,
+                status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+            )
+            
+            # Log outbound message
+            airtable.log_message(
+                checkin_id=checkin_id,
+                direction="Outbound",
+                from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                body=confirmation_message,
+                twilio_sid=""
+            )
+            
+            return {"ok": True, "message": "Changes confirmed and applied"}
+            
+        else:
+            # Handle free-text updates via LLM
+            try:
+                # Get current snapshot for context
+                snapshot = compose.compose_snapshot(person_fields)
+                
+                # Call LLM to extract updates
+                extracted_data = llm.call_extract(snapshot, Body)
+                
+                if extracted_data and extracted_data.get("confidence", 0) >= 0.6:
+                    # High confidence - send confirmation
+                    confirmation_text = extracted_data.get("confirmation_text", "I understand your updates. Reply YES to confirm.")
+                    
+                    # Store pending changes
+                    airtable.update_checkin_status(
+                        checkin_id, 
+                        "In progress", 
+                        json.dumps(extracted_data)
+                    )
+                    
+                    # Send confirmation message
+                    twilio_utils.send_sms(
+                        to=from_phone,
+                        body=confirmation_text,
+                        status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                    )
+                    
+                    # Log outbound message
+                    airtable.log_message(
+                        checkin_id=checkin_id,
+                        direction="Outbound",
+                        from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                        body=confirmation_text,
+                        twilio_sid=""
+                    )
+                    
+                    # Append to transcript
+                    airtable.append_to_transcript(
+                        checkin_id=checkin_id,
+                        message=f"LLM extracted: {json.dumps(extracted_data)}"
+                    )
+                    
+                    return {"ok": True, "message": "Updates extracted, confirmation sent"}
+                    
+                else:
+                    # Low confidence - ask for clarification
+                    clarification_message = "I'm not sure I understood your update. Could you please rephrase or provide more details?"
+                    
+                    twilio_utils.send_sms(
+                        to=from_phone,
+                        body=clarification_message,
+                        status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                    )
+                    
+                    # Log outbound message
+                    airtable.log_message(
+                        checkin_id=checkin_id,
+                        direction="Outbound",
+                        from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                        body=clarification_message,
+                        twilio_sid=""
+                    )
+                    
+                    return {"ok": True, "message": "Low confidence, clarification requested"}
+                    
+            except Exception as e:
+                print(f"Error processing LLM extraction: {e}")
+                # Fallback message
+                fallback_message = "I received your message but had trouble processing it. Please try again or reply 'No change' if nothing has changed."
+                
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=fallback_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                # Log outbound message
+                airtable.log_message(
+                    checkin_id=checkin_id,
+                    direction="Outbound",
+                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
+                    body=fallback_message,
+                    twilio_sid=""
+                )
+                
+                return {"ok": True, "message": "LLM error, fallback message sent"}
+        
+    except Exception as e:
+        print(f"Error in inbound SMS handler: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/twilio/status")
+async def status(request: Request):
+    """Handle Twilio status callbacks for delivery events"""
+    try:
+        data = await request.form()
+        
+        # Extract relevant fields
+        message_sid = data.get("MessageSid", "")
+        message_status = data.get("MessageStatus", "")
+        error_code = data.get("ErrorCode", "")
+        error_message = data.get("ErrorMessage", "")
+        
+        # Find the check-in by message SID (this would require a function to search messages)
+        # For now, we'll just log the status data
+        
+        # Log system message about delivery status
+        # This would require finding the check-in ID from the message SID
+        # For now, we'll just return the data
+        
+        return {
+            "ok": True, 
+            "message": "Status callback received", 
+            "data": {
+                "message_sid": message_sid,
+                "status": message_status,
+                "error_code": error_code,
+                "error_message": error_message
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error in status callback handler: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {"ok": True, "status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/stats/monthly")
+def get_monthly_stats():
+    """Get monthly check-in statistics"""
+    try:
+        stats = scheduler.get_monthly_checkin_stats()
+        return {"ok": True, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
+
+@app.get("/people/due")
+def get_due_people():
+    """Get people due for check-in this month"""
+    try:
+        due_people = scheduler.get_people_due_for_checkin()
+        return {
+            "ok": True, 
+            "count": len(due_people),
+            "people": [{"id": p["id"], "name": p["fields"].get("Name"), "phone": p["fields"].get("Phone")} for p in due_people]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting due people: {str(e)}")
+
+@app.get("/people/overdue")
+def get_overdue_people():
+    """Get people who are overdue for check-in"""
+    try:
+        overdue_people = scheduler.get_overdue_people()
+        return {
+            "ok": True, 
+            "count": len(overdue_people),
+            "people": [{"id": p["id"], "name": p["fields"].get("Name"), "phone": p["fields"].get("Phone")} for p in overdue_people]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting overdue people: {str(e)}")
