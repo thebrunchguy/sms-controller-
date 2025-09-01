@@ -460,3 +460,14 @@ def get_overdue_people():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting overdue people: {str(e)}")
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "SMS Check-in Service", "admin": "/admin", "docs": "/docs"}
+
+@app.get("/admin")
+async def admin_dashboard():
+    """Simple admin interface"""
+    return {"message": "Admin interface - coming soon!"}
