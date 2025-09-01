@@ -467,9 +467,72 @@ async def root():
     """Root endpoint"""
     return {"message": "SMS Check-in Service", "admin": "/admin", "docs": "/docs"}
 
+@app.post("/admin/add-birthday")
+async def admin_add_birthday(name: str = Form(...), birthday: str = Form(...)):
+    """Add birthday - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "add_birthday",
+        "name": name,
+        "birthday": birthday
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
+
+@app.post("/admin/change-role")
+async def admin_change_role(name: str = Form(...), new_role: str = Form(...)):
+    """Change role - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "change_role", 
+        "name": name,
+        "new_role": new_role
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
+
+@app.post("/admin/change-company")
+async def admin_change_company(name: str = Form(...), new_company: str = Form(...)):
+    """Change company - reuses existing admin_sms functionality"""
+    command_data = {
+        "command": "change_company",
+        "name": name, 
+        "new_company": new_company
+    }
+    
+    success, message = admin_sms.execute_admin_command(command_data)
+    return {"success": success, "message": message}
+
+@app.get("/admin/search")
+async def search_people(query: str):
+    """Search for people by name"""
+    try:
+        # Get all people from Airtable
+        people = scheduler.get_people_due_for_checkin()
+        
+        # Search for people by name (case-insensitive)
+        query_lower = query.lower()
+        matches = []
+        
+        for person in people:
+            name = person.get('fields', {}).get('Name', '')
+            if query_lower in name.lower():
+                matches.append({
+                    'id': person['id'],
+                    'name': name,
+                    'phone': person.get('fields', {}).get('Phone', ''),
+                    'company': person.get('fields', {}).get('Company', ''),
+                    'role': person.get('fields', {}).get('Role', '')
+                })
+        
+        return {"success": True, "matches": matches, "count": len(matches)}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.get("/admin")
 async def admin_dashboard():
-    """Admin web interface"""
+    """Admin web interface with search"""
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -489,14 +552,27 @@ async def admin_dashboard():
             .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
             .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
             .form-section { background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 6px; border-left: 4px solid #007bff; }
+            .search-section { background: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 6px; border-left: 4px solid #2196f3; }
+            .search-results { margin-top: 15px; }
+            .person-card { background: white; padding: 15px; margin: 10px 0; border-radius: 4px; border: 1px solid #ddd; }
+            .person-name { font-weight: bold; color: #333; }
+            .person-details { color: #666; font-size: 14px; margin-top: 5px; }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>🎛️ Admin Dashboard</h1>
             
+            <div class="search-section">
+                <h2>🔍 Search People</h2>
+                <div class="form-group">
+                    <input type="text" id="searchInput" placeholder="Type a name to search..." style="width: 100%; max-width: 600px;">
+                </div>
+                <div id="searchResults" class="search-results"></div>
+            </div>
+            
             <div class="form-section">
-                <h2>🎂 Add Birthday</h2>
+                <h2>�� Add Birthday</h2>
                 <form action="/admin/add-birthday" method="post" onsubmit="return submitForm(this, event)">
                     <div class="form-group">
                         <label>Name:</label>
@@ -542,6 +618,57 @@ async def admin_dashboard():
         </div>
         
         <script>
+            // Search functionality
+            const searchInput = document.getElementById('searchInput');
+            const searchResults = document.getElementById('searchResults');
+            
+            searchInput.addEventListener('input', async function() {
+                const query = this.value.trim();
+                
+                if (query.length < 2) {
+                    searchResults.innerHTML = '';
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/admin/search?query=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        displaySearchResults(data.matches);
+                    } else {
+                        searchResults.innerHTML = '<div class="error">❌ Search error: ' + data.error + '</div>';
+                    }
+                } catch (error) {
+                    searchResults.innerHTML = '<div class="error">❌ Search failed: ' + error.message + '</div>';
+                }
+            });
+            
+            function displaySearchResults(matches) {
+                if (matches.length === 0) {
+                    searchResults.innerHTML = '<div class="result">No people found matching your search.</div>';
+                    return;
+                }
+                
+                let html = `<div class="result success">Found ${matches.length} person(s):</div>`;
+                
+                matches.forEach(person => {
+                    html += `
+                        <div class="person-card">
+                            <div class="person-name">${person.name}</div>
+                            <div class="person-details">
+                                ${person.phone ? '📞 ' + person.phone + '<br>' : ''}
+                                ${person.company ? '🏢 ' + person.company + '<br>' : ''}
+                                ${person.role ? '💼 ' + person.role : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                searchResults.innerHTML = html;
+            }
+            
+            // Form submission
             async function submitForm(form, event) {
                 event.preventDefault();
                 
@@ -586,39 +713,3 @@ async def admin_dashboard():
     """
     
     return HTMLResponse(content=html_content)
-
-@app.post("/admin/add-birthday")
-async def admin_add_birthday(name: str = Form(...), birthday: str = Form(...)):
-    """Add birthday - reuses existing admin_sms functionality"""
-    command_data = {
-        "command": "add_birthday",
-        "name": name,
-        "birthday": birthday
-    }
-    
-    success, message = admin_sms.execute_admin_command(command_data)
-    return {"success": success, "message": message}
-
-@app.post("/admin/change-role")
-async def admin_change_role(name: str = Form(...), new_role: str = Form(...)):
-    """Change role - reuses existing admin_sms functionality"""
-    command_data = {
-        "command": "change_role", 
-        "name": name,
-        "new_role": new_role
-    }
-    
-    success, message = admin_sms.execute_admin_command(command_data)
-    return {"success": success, "message": message}
-
-@app.post("/admin/change-company")
-async def admin_change_company(name: str = Form(...), new_company: str = Form(...)):
-    """Change company - reuses existing admin_sms functionality"""
-    command_data = {
-        "command": "change_company",
-        "name": name, 
-        "new_company": new_company
-    }
-    
-    success, message = admin_sms.execute_admin_command(command_data)
-    return {"success": success, "message": message}
