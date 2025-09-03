@@ -1,0 +1,273 @@
+from typing import Dict, Any, Tuple, Optional
+import airtable
+import twilio_utils
+from datetime import datetime, timedelta
+import re
+import json
+
+class IntentHandlers:
+    
+    @staticmethod
+    def handle_update_person_info(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle updates to Core People table (Birthday, How We Met, etc.)"""
+        
+        field_updates = extracted_data.get("field_updates", {})
+        
+        # Map and validate field updates for Core People table
+        updates = {}
+        
+        # Birthday updates
+        if "birthday" in field_updates:
+            birthday = _normalize_birthday(field_updates["birthday"])
+            if birthday:
+                updates["Birthday"] = birthday
+        
+        # Store company/role updates in How We Met field since LinkedIn table is read-only
+        if "company" in field_updates or "role" in field_updates:
+            current_how_we_met = person_fields.get("How We Met", "")
+            new_info = []
+            
+            if current_how_we_met and current_how_we_met != "N/A":
+                new_info.append(current_how_we_met)
+            
+            if "company" in field_updates:
+                new_info.append(f"Company: {field_updates['company']}")
+            
+            if "role" in field_updates:
+                new_info.append(f"Role: {field_updates['role']}")
+            
+            updates["How We Met"] = " | ".join(new_info)
+        
+        # Location updates (store in How We Met since we don't have a direct location field)
+        if "location" in field_updates or "city" in field_updates:
+            location = field_updates.get("location") or field_updates.get("city")
+            current_how_we_met = person_fields.get("How We Met", "")
+            
+            if current_how_we_met and current_how_we_met != "N/A":
+                updates["How We Met"] = f"{current_how_we_met} | Location: {location}"
+            else:
+                updates["How We Met"] = f"Location: {location}"
+        
+        if updates:
+            success = airtable.update_person(person_id, updates)
+            if success:
+                updated_fields = list(updates.keys())
+                return True, f"✅ Updated {', '.join(updated_fields)} in your profile"
+            else:
+                return False, "❌ Failed to update your information"
+        
+        return False, "❌ No valid updates found"
+    
+    @staticmethod
+    def handle_manage_tags(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle tag operations - updates People table Tags field"""
+        
+        tags_to_add = extracted_data.get("tags_to_add", [])
+        tags_to_remove = extracted_data.get("tags_to_remove", [])
+        
+        if not tags_to_add and not tags_to_remove:
+            return False, "❌ No tag operations specified"
+        
+        # Get current tags from People table
+        current_tags = person_fields.get("Tags", [])
+        
+        # Add new tags
+        if tags_to_add:
+            current_tags.extend(tags_to_add)
+        
+        # Remove specified tags
+        if tags_to_remove:
+            current_tags = [tag for tag in current_tags if tag not in tags_to_remove]
+        
+        # Remove duplicates
+        current_tags = list(set(current_tags))
+        
+        success = airtable.update_person(person_id, {"Tags": current_tags})
+        
+        if success:
+            messages = []
+            if tags_to_add:
+                messages.append(f"Added: {', '.join(tags_to_add)}")
+            if tags_to_remove:
+                messages.append(f"Removed: {', '.join(tags_to_remove)}")
+            return True, f"✅ Tags updated - {', '.join(messages)}"
+        else:
+            return False, "❌ Failed to update tags"
+    
+    @staticmethod
+    def handle_create_reminder(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle creating reminders in Reminders table"""
+        
+        action = extracted_data.get("reminder_action", "")
+        timeline = extracted_data.get("reminder_timeline", "")
+        priority = extracted_data.get("reminder_priority", "medium")
+        
+        if not action:
+            return False, "❌ No reminder action specified"
+        
+        # Calculate due date based on timeline
+        due_date = _parse_timeline_to_date(timeline)
+        
+        # Create reminder record
+        reminder_data = {
+            "Person": [person_id],
+            "Action": action,
+            "Timeline": timeline,
+            "Due Date": due_date.isoformat() if due_date else None,
+            "Priority": priority.title(),
+            "Status": "Pending",
+            "Created At": datetime.now().isoformat(),
+            "Created By": "SMS"
+        }
+        
+        success = airtable.create_reminder(reminder_data)
+        
+        if success:
+            due_text = f" (due: {timeline})" if timeline else ""
+            return True, f"✅ Reminder created: {action}{due_text}"
+        else:
+            return False, "❌ Failed to create reminder"
+    
+    @staticmethod
+    def handle_create_note(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle creating notes in Notes table"""
+        
+        note_content = extracted_data.get("note_content", "")
+        
+        if not note_content:
+            return False, "❌ No note content specified"
+        
+        # Create note record
+        note_data = {
+            "Person": [person_id],
+            "Content": note_content,
+            "Type": "SMS Note",
+            "Created At": datetime.now().isoformat(),
+            "Created By": "SMS"
+        }
+        
+        success = airtable.create_note(note_data)
+        
+        if success:
+            return True, f"✅ Note added: {note_content[:50]}{'...' if len(note_content) > 50 else ''}"
+        else:
+            return False, "❌ Failed to create note"
+    
+    @staticmethod
+    def handle_schedule_followup(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle scheduling follow-ups in Followups table"""
+        
+        timeline = extracted_data.get("followup_timeline", "")
+        reason = extracted_data.get("followup_reason", "")
+        
+        if not timeline:
+            return False, "❌ No follow-up timeline specified"
+        
+        # Calculate follow-up date
+        followup_date = _parse_timeline_to_date(timeline)
+        
+        # Create follow-up record
+        followup_data = {
+            "Person": [person_id],
+            "Reason": reason or "Scheduled follow-up",
+            "Timeline": timeline,
+            "Scheduled Date": followup_date.isoformat() if followup_date else None,
+            "Status": "Scheduled",
+            "Created At": datetime.now().isoformat(),
+            "Created By": "SMS"
+        }
+        
+        success = airtable.create_followup(followup_data)
+        
+        if success:
+            return True, f"✅ Follow-up scheduled: {timeline}"
+        else:
+            return False, "❌ Failed to schedule follow-up"
+
+def _normalize_birthday(birthday_str: str) -> Optional[str]:
+    """Normalize birthday to YYYY-MM-DD format"""
+    if not birthday_str:
+        return None
+    
+    # Handle MM/DD/YYYY format
+    if "/" in birthday_str:
+        try:
+            parts = birthday_str.split("/")
+            if len(parts) == 3:
+                month, day, year = parts
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            pass
+    
+    # Handle MM-DD-YYYY format
+    if "-" in birthday_str and len(birthday_str.split("-")[0]) <= 2:
+        try:
+            parts = birthday_str.split("-")
+            if len(parts) == 3:
+                month, day, year = parts
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            pass
+    
+    return birthday_str
+
+def _parse_timeline_to_date(timeline: str) -> Optional[datetime]:
+    """Parse natural language timeline to actual date"""
+    if not timeline:
+        return None
+    
+    timeline_lower = timeline.lower()
+    now = datetime.now()
+    
+    # Parse various timeline expressions
+    if "few months" in timeline_lower or "couple months" in timeline_lower:
+        return now + timedelta(days=60)
+    elif "month" in timeline_lower:
+        return now + timedelta(days=30)
+    elif "few weeks" in timeline_lower or "couple weeks" in timeline_lower:
+        return now + timedelta(days=14)
+    elif "week" in timeline_lower:
+        return now + timedelta(days=7)
+    elif "few days" in timeline_lower:
+        return now + timedelta(days=3)
+    elif "day" in timeline_lower:
+        return now + timedelta(days=1)
+    elif "tomorrow" in timeline_lower:
+        return now + timedelta(days=1)
+    elif "next week" in timeline_lower:
+        return now + timedelta(days=7)
+    elif "next month" in timeline_lower:
+        return now + timedelta(days=30)
+    
+    # Try to extract numbers
+    numbers = re.findall(r'\d+', timeline)
+    if numbers:
+        num = int(numbers[0])
+        if "month" in timeline_lower:
+            return now + timedelta(days=num * 30)
+        elif "week" in timeline_lower:
+            return now + timedelta(days=num * 7)
+        elif "day" in timeline_lower:
+            return now + timedelta(days=num)
+    
+    return None

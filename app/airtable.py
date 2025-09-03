@@ -11,6 +11,11 @@ AIRTABLE_PEOPLE_TABLE = os.getenv("AIRTABLE_PEOPLE_TABLE", "People")
 AIRTABLE_CHECKINS_TABLE = os.getenv("AIRTABLE_CHECKINS_TABLE", "Check-ins")
 AIRTABLE_MESSAGES_TABLE = os.getenv("AIRTABLE_MESSAGES_TABLE", "Messages")
 
+# Add new table configurations
+AIRTABLE_REMINDERS_TABLE = os.getenv("AIRTABLE_REMINDERS_TABLE", "Reminders")
+AIRTABLE_NOTES_TABLE = os.getenv("AIRTABLE_NOTES_TABLE", "Notes")
+AIRTABLE_FOLLOWUPS_TABLE = os.getenv("AIRTABLE_FOLLOWUPS_TABLE", "Followups")
+
 AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
 
 class AirtableError(Exception):
@@ -237,3 +242,94 @@ def get_all_people() -> List[Dict]:
     except Exception as e:
         print(f"Error getting all people: {e}")
         return []
+
+def create_reminder(reminder_data: Dict[str, Any]) -> bool:
+    """Create a new reminder record in the Reminders table"""
+    try:
+        endpoint = f"{AIRTABLE_REMINDERS_TABLE}"
+        response = _make_request("POST", endpoint, {"fields": reminder_data})
+        return response is not None
+    except Exception as e:
+        print(f"Error creating reminder: {e}")
+        return False
+
+def create_note(note_data: Dict[str, Any]) -> bool:
+    """Create a new note record in the Notes table"""
+    try:
+        endpoint = f"{AIRTABLE_NOTES_TABLE}"
+        response = _make_request("POST", endpoint, {"fields": note_data})
+        return response is not None
+    except Exception as e:
+        print(f"Error creating note: {e}")
+        return False
+
+def create_followup(followup_data: Dict[str, Any]) -> bool:
+    """Create a new follow-up record in the Followups table"""
+    try:
+        endpoint = f"{AIRTABLE_FOLLOWUPS_TABLE}"
+        response = _make_request("POST", endpoint, {"fields": followup_data})
+        return response is not None
+    except Exception as e:
+        print(f"Error creating followup: {e}")
+        return False
+
+def get_reminders_for_person(person_id: str) -> List[Dict[str, Any]]:
+    """Get all reminders for a specific person"""
+    try:
+        endpoint = f"{AIRTABLE_REMINDERS_TABLE}"
+        params = {"filterByFormula": f"{{Person}} = '{person_id}'"}
+        response = _make_request("GET", endpoint, params=params)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting reminders for person: {e}")
+        return []
+
+def get_notes_for_person(person_id: str) -> List[Dict[str, Any]]:
+    """Get all notes for a specific person"""
+    try:
+        endpoint = f"{AIRTABLE_NOTES_TABLE}"
+        params = {"filterByFormula": f"{{Person}} = '{person_id}'"}
+        response = _make_request("GET", endpoint, params=params)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting notes for person: {e}")
+        return []
+
+def get_followups_for_person(person_id: str) -> List[Dict[str, Any]]:
+    """Get all follow-ups for a specific person"""
+    try:
+        endpoint = f"{AIRTABLE_FOLLOWUPS_TABLE}"
+        params = {"filterByFormula": f"{{Person}} = '{person_id}'"}
+        response = _make_request("GET", endpoint, params=params)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting followups for person: {e}")
+        return []
+
+def update_reminder_status(reminder_id: str, status: str, completed_at: Optional[str] = None) -> bool:
+    """Update the status of a reminder"""
+    try:
+        updates = {"Status": status}
+        if completed_at:
+            updates["Completed At"] = completed_at
+        
+        endpoint = f"{AIRTABLE_REMINDERS_TABLE}/{reminder_id}"
+        response = _make_request("PATCH", endpoint, {"fields": updates})
+        return response is not None
+    except Exception as e:
+        print(f"Error updating reminder status: {e}")
+        return False
+
+def update_followup_status(followup_id: str, status: str, completed_at: Optional[str] = None) -> bool:
+    """Update the status of a follow-up"""
+    try:
+        updates = {"Status": status}
+        if completed_at:
+            updates["Completed At"] = completed_at
+        
+        endpoint = f"{AIRTABLE_FOLLOWUPS_TABLE}/{followup_id}"
+        response = _make_request("PATCH", endpoint, {"fields": updates})
+        return response is not None
+    except Exception as e:
+        print(f"Error updating followup status: {e}")
+        return False
