@@ -70,13 +70,13 @@ def find_person_by_name(name: str) -> Optional[Dict[str, Any]]:
     """Find a person in Airtable by name"""
     try:
         # Get all people from the Checkins table
-        people = airtable.get_people_due_for_checkin()
+        people = airtable.get_all_people()
         
         # Search for person by name (case-insensitive)
         name_lower = name.lower()
         for person in people:
             person_name = person.get('fields', {}).get('Name', '')
-            if person_name.lower() == name_lower:
+            if name_lower in person_name.lower():
                 return person
         
         return None
