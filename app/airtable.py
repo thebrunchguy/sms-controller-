@@ -3,6 +3,10 @@ import json
 import httpx
 from typing import Dict, List, Optional, Any
 from datetime import datetime, date
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'config.env'))
 
 # Airtable configuration
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -68,19 +72,45 @@ def _make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Di
 def get_person_by_phone(phone: str) -> Optional[Dict]:
     """Get a person record by phone number"""
     try:
-        # Airtable filter formula to find person by phone
-        filter_formula = f"{{Phone}} = '{phone}'"
-        endpoint = f"{AIRTABLE_PEOPLE_TABLE}?filterByFormula={filter_formula}"
+        # Normalize the input phone number
+        normalized_phone = _normalize_phone(phone)
         
-        response = _make_request("GET", endpoint)
+        # Get all people and search through them
+        # This is less efficient but more reliable for phone number matching
+        response = _make_request("GET", AIRTABLE_PEOPLE_TABLE)
         records = response.get("records", [])
         
-        if records:
-            return records[0]
+        for record in records:
+            record_phone = record.get("fields", {}).get("Phone", "")
+            if record_phone:
+                # Normalize the phone number from the record
+                normalized_record_phone = _normalize_phone(record_phone)
+                if normalized_phone == normalized_record_phone:
+                    return record
+        
         return None
     except Exception as e:
         print(f"Error getting person by phone {phone}: {e}")
         return None
+
+def _normalize_phone(phone: str) -> str:
+    """Normalize phone number for comparison"""
+    if not phone:
+        return ""
+    
+    # Remove all non-digit characters
+    digits_only = ''.join(filter(str.isdigit, phone))
+    
+    # Handle different formats
+    if len(digits_only) == 10:
+        # Add country code
+        return f"1{digits_only}"
+    elif len(digits_only) == 11 and digits_only.startswith('1'):
+        # Already has country code
+        return digits_only
+    else:
+        # Return as-is if we can't normalize
+        return digits_only
 
 def update_person(person_id: str, fields: Dict[str, Any]) -> bool:
     """Update a person record with new fields"""
