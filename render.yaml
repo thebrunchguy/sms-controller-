@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: kobro-admin
+    env: python
+    plan: free  # Change to 'starter' or 'standard' for always-on
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 run.py
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8000
+      - key: APP_ENV
+        value: production
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
