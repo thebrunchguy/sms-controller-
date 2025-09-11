@@ -211,12 +211,8 @@ def log_message(checkin_id: str, direction: str, from_number: str, body: str,
     """Log a message in the Messages table"""
     try:
         message_data = {
-            "Check-in": [checkin_id],
-            "When": datetime.now().isoformat(),
-            "Direction": direction,
             "From": from_number,
-            "Body": body,
-            "Twilio SID": twilio_sid
+            "Body": body
         }
         
         if parsed_json:
