@@ -12,6 +12,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'config.env'
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PEOPLE_TABLE = os.getenv("AIRTABLE_PEOPLE_TABLE", "People")
+AIRTABLE_CHECKINS_BASE_ID = os.getenv("AIRTABLE_CHECKINS_BASE_ID", AIRTABLE_BASE_ID)
 AIRTABLE_CHECKINS_TABLE = os.getenv("AIRTABLE_CHECKINS_TABLE", "Check-ins")
 AIRTABLE_MESSAGES_TABLE = os.getenv("AIRTABLE_MESSAGES_TABLE", "Messages")
 
@@ -21,6 +22,7 @@ AIRTABLE_NOTES_TABLE = os.getenv("AIRTABLE_NOTES_TABLE", "Notes")
 AIRTABLE_FOLLOWUPS_TABLE = os.getenv("AIRTABLE_FOLLOWUPS_TABLE", "Followups")
 
 AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
+AIRTABLE_CHECKINS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_CHECKINS_BASE_ID}"
 
 class AirtableError(Exception):
     """Custom exception for Airtable API errors"""
@@ -33,9 +35,11 @@ def _get_headers():
         "Content-Type": "application/json"
     }
 
-def _make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
+def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_url: Optional[str] = None) -> Dict:
     """Make a request to Airtable API"""
-    url = f"{AIRTABLE_BASE_URL}/{endpoint}"
+    if base_url is None:
+        base_url = AIRTABLE_BASE_URL
+    url = f"{base_url}/{endpoint}"
     
     async def _async_request():
         async with httpx.AsyncClient() as client:
@@ -136,7 +140,7 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
         filter_formula = f"AND({{Person}} = '{person_id}', {{Month}} = '{month}')"
         endpoint = f"{AIRTABLE_CHECKINS_TABLE}?filterByFormula={filter_formula}"
         
-        response = _make_request("GET", endpoint)
+        response = _make_request("GET", endpoint, base_url=AIRTABLE_CHECKINS_BASE_URL)
         existing_records = response.get("records", [])
         
         checkin_data = {
@@ -159,7 +163,7 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
                     "fields": checkin_data
                 }]
             }
-            _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data)
+            _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
             return checkin_id
         else:
             # Create new check-in
@@ -168,7 +172,7 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
                     "fields": checkin_data
                 }]
             }
-            response = _make_request("POST", AIRTABLE_CHECKINS_TABLE, data)
+            response = _make_request("POST", AIRTABLE_CHECKINS_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
             return response["records"][0]["id"]
             
     except Exception as e:
@@ -197,7 +201,7 @@ def log_message(checkin_id: str, direction: str, from_number: str, body: str,
             }]
         }
         
-        _make_request("POST", AIRTABLE_MESSAGES_TABLE, data)
+        _make_request("POST", AIRTABLE_MESSAGES_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
         return True
     except Exception as e:
         print(f"Error logging message for checkin {checkin_id}: {e}")
@@ -231,7 +235,7 @@ def update_checkin_status(checkin_id: str, status: str, pending_changes: Optiona
             }]
         }
         
-        _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data)
+        _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
         return True
     except Exception as e:
         print(f"Error updating checkin status {checkin_id}: {e}")
@@ -242,7 +246,7 @@ def append_to_transcript(checkin_id: str, message: str) -> bool:
     try:
         # First get current transcript
         endpoint = f"{AIRTABLE_CHECKINS_TABLE}/{checkin_id}"
-        response = _make_request("GET", endpoint)
+        response = _make_request("GET", endpoint, base_url=AIRTABLE_CHECKINS_BASE_URL)
         current_transcript = response.get("fields", {}).get("Transcript", "")
         
         # Append new message with timestamp
@@ -257,7 +261,7 @@ def append_to_transcript(checkin_id: str, message: str) -> bool:
             }]
         }
         
-        _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data)
+        _make_request("PATCH", AIRTABLE_CHECKINS_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
         return True
     except Exception as e:
         print(f"Error appending to transcript for checkin {checkin_id}: {e}")
