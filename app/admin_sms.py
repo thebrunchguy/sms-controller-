@@ -4,8 +4,8 @@ from . import airtable
 
 # Admin phone numbers (add more as needed)
 ADMIN_NUMBERS = {
-    "+19784910236",  # David's number
-    "9784910236"     # Also accept without +1
+    # "+19784910236",  # David's number - temporarily disabled for testing
+    # "9784910236"     # Also accept without +1
 }
 
 def is_admin_number(phone: str) -> bool:
