@@ -53,7 +53,26 @@ class IntentHandlers:
                 updates["How We Met"] = f"Location: {location}"
         
         if updates:
-            success = airtable.update_person(person_id, updates)
+            # Find the person in the main people table by name and email
+            # since person_id is from check-ins table
+            person_name = person_fields.get("Name", "")
+            person_email = person_fields.get("Email", "")
+            
+            # Get all people from main table and find matching record
+            main_people = airtable.get_all_people()
+            main_person_id = None
+            
+            for person in main_people:
+                fields = person.get("fields", {})
+                if (fields.get("Name") == person_name and 
+                    fields.get("Email") == person_email):
+                    main_person_id = person["id"]
+                    break
+            
+            if not main_person_id:
+                return False, "❌ Could not find matching record in main people table"
+            
+            success = airtable.update_person(main_person_id, updates)
             if success:
                 updated_fields = list(updates.keys())
                 return True, f"✅ Updated {', '.join(updated_fields)} in your profile"
