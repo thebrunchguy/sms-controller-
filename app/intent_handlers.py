@@ -1,6 +1,6 @@
 from typing import Dict, Any, Tuple, Optional
-import airtable
-import twilio_utils
+from . import airtable
+from . import twilio_utils
 from datetime import datetime, timedelta
 import re
 import json
