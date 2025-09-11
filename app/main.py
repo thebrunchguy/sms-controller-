@@ -749,6 +749,7 @@ async def debug_airtable():
             "table_name": os.getenv("AIRTABLE_PEOPLE_TABLE", "People"),
             "base_id": os.getenv("AIRTABLE_BASE_ID", "unknown"),
             "checkins_base_id": os.getenv("AIRTABLE_CHECKINS_BASE_ID", "unknown"),
+            "checkins_base_url": os.getenv("AIRTABLE_CHECKINS_BASE_URL", "unknown"),
             "checkins_table": os.getenv("AIRTABLE_CHECKINS_TABLE", "unknown"),
             "checkins_people_table": os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE", "unknown"),
             "total_records": len(people),
