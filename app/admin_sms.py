@@ -154,5 +154,6 @@ def get_admin_help() -> str:
   Example: change company John Doe Google
 
 • help - Show this help message
+• controls - Show this help message (same as help)
 
 Note: Use exact names as they appear in Airtable""" 

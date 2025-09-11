@@ -9,10 +9,22 @@
     ↓ Webhook
 🌐 Render App (kobro-admin.onrender.com)
     ↓ Processing
-🗄️ Airtable Database
+🗄️ Airtable Databases (Cross-Base Integration)
     ↓ Response
 📱 User Phone (Confirmation)
 ```
+
+## Architecture Components
+
+### 🚀 **Production Environment**
+- **Render App**: `https://kobro-admin.onrender.com`
+- **Twilio Webhook**: `https://kobro-admin.onrender.com/twilio/inbound`
+- **Admin Debug**: `https://kobro-admin.onrender.com/admin/debug`
+
+### 🗄️ **Database Architecture (Multi-Base)**
+- **Main People Base**: `appCA6OJqDxLdiEqf` (Core People Table)
+- **Check-ins Base**: `apptiPfA1VJX5fEZ2` (SMS Processing & Check-ins)
+- **Cross-Base Integration**: Seamless data flow between bases
 
 ## Message Processing Flow
 
@@ -24,19 +36,42 @@
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-### 2. Phone Number Lookup
+### 2. Phone Number Lookup (Cross-Base)
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Phone Number  │───▶│  Normalize      │───▶│  Airtable       │
+│   Phone Number  │───▶│  Normalize      │───▶│  Check-ins      │
 │  +19784910236   │    │  Phone Format   │    │  People Table   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │  Fallback to    │
+                       │  Main People    │
+                       │  Table          │
+                       └─────────────────┘
+```
+
+### 3. Check-in Record Creation
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Person Found  │───▶│  Create/Update  │───▶│  Check-ins      │
+│   (Check-ins)   │    │  Check-in       │    │  Table          │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-### 3. Intent Classification
+### 4. Intent Classification
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   SMS Message   │───▶│  OpenAI LLM     │───▶│  Intent + Data   │
 │   "change..."   │    │  Classification │    │  Extraction     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### 5. Cross-Base Data Update
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Intent Data   │───▶│  Find Person    │───▶│  Update Main    │
+│   (Birthday)    │    │  in Main Table  │    │  People Table   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -46,13 +81,14 @@
 ```
 Input: "change david kobrosky's birthday to 3/14/1999"
        ↓
-Intent: update_person_info
-Confidence: 0.95
-Extracted: {"birthday": "3/14/1999"}
+1. Phone Lookup: Find in Check-ins People Table (preferred)
+2. Check-in: Create/update check-in record
+3. Intent: update_person_info (Confidence: 0.95)
+4. Extract: {"birthday": "3/14/1999"}
        ↓
-Normalize: "3/14/1999" → "1999-03-14"
-       ↓
-Update: Airtable People Table
+5. Normalize: "3/14/1999" → "1999-03-14"
+6. Cross-Base: Find person in Main People Table by name/email
+7. Update: Main People Table (Birthday field)
        ↓
 Response: "✅ Updated Birthday in your profile"
 ```
@@ -122,19 +158,27 @@ Response: "You have been unsubscribed from monthly check-ins."
 
 ## Database Tables Used
 
-### Core People Table (Base: appCA6OJqDxLdiEqf)
-- **Table ID:** tbl2pDRalUQpzEBkQ
-- **Fields:** Name, Phone, Birthday, Company, Role, Tags, etc.
-- **Used for:** Person lookups, profile updates, birthday changes
+### 🏢 **Main People Base** (`appCA6OJqDxLdiEqf`)
+- **Core People Table:** `tbl2pDRalUQpzEBkQ`
+- **Fields:** Name, Phone, Birthday, Company, Role, Tags, Email, etc.
+- **Used for:** Final data storage, profile updates, birthday changes
+- **Access:** Read/Write for data updates
 
-### SMS Check-ins Table (Base: apptiPfA1VJX5fEZ2)
-- **Table ID:** tblyh3CA81E0lilm1
-- **Fields:** Person, Month, Status, Transcript, Messages
-- **Used for:** Check-in records, message logging, conversation history
+### 📱 **Check-ins Base** (`apptiPfA1VJX5fEZ2`)
+- **SMS Main View Table:** `tblyh3CA81E0lilm1` (People lookup)
+- **Check-ins Table:** `tblivVAPP95ccK8xL` (Check-in records)
+- **Messages Table:** `tblivVAPP95ccK8xL` (Message logging)
+- **Used for:** SMS processing, check-in records, message history
+- **Access:** Primary lookup for SMS processing
 
-### Additional Tables
+### 🔄 **Cross-Base Integration**
+- **Phone Lookup:** Check-ins People Table (preferred) → Main People Table (fallback)
+- **Data Updates:** Check-ins base finds person → Main base updates data
+- **Record Linking:** Person records linked between bases via name/email matching
+
+### 📊 **Additional Tables** (Future)
 - **Reminders Table:** For reminder creation
-- **Notes Table:** For note storage
+- **Notes Table:** For note storage  
 - **Followups Table:** For follow-up scheduling
 
 ## Error Handling
@@ -172,32 +216,93 @@ Response: "I received your message but had trouble processing it. Please try aga
 ```
 1. 📱 User sends: "change david kobrosky's birthday to 3/14/1999"
 2. 📞 Twilio receives SMS and sends webhook to Render
-3. 🔍 System looks up phone number in Airtable People table
-4. 🧠 OpenAI classifies intent as "update_person_info"
-5. 📊 System extracts birthday "3/14/1999"
-6. 🔄 Birthday normalized to "1999-03-14"
-7. 💾 Airtable People table updated with new birthday
-8. 📝 Check-in record created/updated in SMS Check-ins table
-9. 📱 Confirmation SMS sent back to user
-10. ✅ User receives: "✅ Updated Birthday in your profile"
+3. 🔍 System normalizes phone number and looks up in Check-ins People table
+4. 📝 Check-in record created/updated in Check-ins table
+5. 🧠 OpenAI classifies intent as "update_person_info" (confidence: 0.95)
+6. 📊 System extracts birthday "3/14/1999" from message
+7. 🔄 Birthday normalized to "1999-03-14" format
+8. 🔗 Cross-base lookup: Find person in Main People table by name/email
+9. 💾 Main People table updated with new birthday
+10. 📱 Confirmation SMS sent back to user
+11. ✅ User receives: "✅ Updated Birthday in your profile"
 ```
+
+## Key Technical Improvements
+
+### 🔧 **Phone Number Normalization**
+- Handles various formats: `+19784910236`, `9784910236`, `(978) 491-0236`
+- Consistent lookup across both Airtable bases
+- Fallback mechanism for different table structures
+
+### 🏗️ **Cross-Base Architecture**
+- **Primary Lookup:** Check-ins People Table (SMS Main View)
+- **Data Storage:** Main People Table (Core data)
+- **Seamless Integration:** Automatic record matching between bases
+
+### 🛡️ **Error Handling & Validation**
+- **Unknown Phone Numbers:** Graceful rejection with no response
+- **Low Confidence Intent:** Clarification requests
+- **Processing Errors:** Fallback error messages
+- **Admin Commands:** Special processing for admin numbers
+
+### ⚡ **Performance Optimizations**
+- **Prefer Check-ins Table:** Faster SMS processing
+- **Efficient Lookups:** Normalized phone number matching
+- **Minimal API Calls:** Optimized Airtable requests
 
 ## Admin Commands
 
-### Admin Phone Numbers
-- Special phone numbers that can send admin commands
-- Bypass normal person lookup
-- Access to admin functions
+### 🔐 **Admin Phone Numbers**
+- **David's Number:** `+19784910236` (also accepts `9784910236`)
+- **Bypass:** Normal SMS processing for admin commands
+- **Priority:** Admin commands processed before regular SMS
 
-### Admin Commands
+### 📋 **Admin Commands**
 - `help` - Show available admin commands
+- `controls` - Show available admin commands (same as help)
 - `add_birthday [name] [date]` - Add birthday for person
-- `change_role [name] [role]` - Change person's role
+- `change_role [name] [role]` - Change person's role  
 - `change_company [name] [company]` - Change person's company
+
+### 🔄 **Admin vs Regular SMS**
+```
+Admin Number (+19784910236):
+├── "help" → Admin help message
+├── "controls" → Admin help message (same as help)
+├── "add_birthday John 1990-01-01" → Admin command
+└── "change my birthday to 1/1/1990" → Regular SMS processing
+
+Regular Number:
+└── "change my birthday to 1/1/1990" → Regular SMS processing
+```
 
 ## Web Interface
 
-### Admin Dashboard
+### 🌐 **Admin Dashboard**
 - **URL:** https://kobro-admin.onrender.com/admin
 - **Features:** Search people, add birthdays, change roles/companies
 - **Access:** Web browser interface for manual updates
+
+### 🔍 **Debug Endpoint**
+- **URL:** https://kobro-admin.onrender.com/admin/debug
+- **Features:** View configuration, check Airtable connections, see sample data
+- **Usage:** Troubleshooting and system monitoring
+
+## Production Status
+
+### ✅ **Deployed Features**
+- **Open-ended SMS processing** with AI intent classification
+- **Cross-base Airtable integration** between people and check-ins
+- **Phone number normalization** for consistent lookups
+- **Admin command processing** for privileged users
+- **Error handling** and validation
+- **Production deployment** on Render
+
+### 🧪 **Test Coverage**
+- **Comprehensive test suite** in `/tests/` directory
+- **Local testing** for development and debugging
+- **Production testing** via Twilio webhook
+- **Error scenario testing** for robust error handling
+
+### 🚀 **Ready for Production Use**
+The system is fully deployed and ready to handle real-world SMS interactions with natural language processing, cross-base data management, and robust error handling.

@@ -153,7 +153,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             print(f"🔐 Admin SMS from {from_phone}")
             
             # Handle admin commands
-            if Body.strip().lower() == "help":
+            if Body.strip().lower() in ["help", "controls"]:
                 # Send admin help
                 help_message = admin_sms.get_admin_help()
                 twilio_utils.send_sms(
