@@ -161,6 +161,21 @@ def update_person(person_id: str, fields: Dict[str, Any]) -> bool:
         print(f"Error updating person {person_id}: {e}")
         return False
 
+def create_person(fields: Dict[str, Any]) -> Optional[str]:
+    """Create a new person record and return the person ID"""
+    try:
+        data = {
+            "records": [{
+                "fields": fields
+            }]
+        }
+        
+        response = _make_request("POST", AIRTABLE_PEOPLE_TABLE, data)
+        return response["records"][0]["id"]
+    except Exception as e:
+        print(f"Error creating person: {e}")
+        return None
+
 def upsert_checkin(person_id: str, month: str, status: str = "Sent", 
                    pending_changes: Optional[str] = None, transcript: str = "") -> Optional[str]:
     """Create or update a check-in record"""

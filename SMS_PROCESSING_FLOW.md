@@ -260,6 +260,7 @@ Response: "I received your message but had trouble processing it. Please try aga
 ### 📋 **Admin Commands**
 - `help` - Show available admin commands
 - `controls` - Show available admin commands (same as help)
+- `new_friend [name]` - Add new friend to Airtable
 - `add_birthday [name] [date]` - Add birthday for person
 - `change_role [name] [role]` - Change person's role  
 - `change_company [name] [company]` - Change person's company
@@ -269,6 +270,7 @@ Response: "I received your message but had trouble processing it. Please try aga
 Admin Number (+19784910236):
 ├── "help" → Admin help message
 ├── "controls" → Admin help message (same as help)
+├── "new friend Sarah Johnson" → Admin command
 ├── "add_birthday John 1990-01-01" → Admin command
 └── "change my birthday to 1/1/1990" → Regular SMS processing
 

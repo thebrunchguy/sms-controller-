@@ -22,6 +22,7 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     - add birthday [Name] [YYYY-MM-DD]
     - change role [Name] [New Role]
     - change company [Name] [New Company]
+    - new friend [Name]
     """
     message = message.strip()
     
@@ -64,6 +65,17 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
             "new_company": new_company
         }
     
+    # Pattern for adding new friend
+    new_friend_pattern = r'^new\s+friend\s+(.+)$'
+    new_friend_match = re.match(new_friend_pattern, message, re.IGNORECASE)
+    
+    if new_friend_match:
+        name = new_friend_match.group(1).strip()
+        return {
+            "command": "new_friend",
+            "name": name
+        }
+    
     return None
 
 def find_person_by_name(name: str) -> Optional[Dict[str, Any]]:
@@ -92,7 +104,21 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
         command = command_data.get("command")
         name = command_data.get("name")
         
-        # Find the person
+        # Handle new friend command (create new person)
+        if command == "new_friend":
+            # Check if person already exists
+            existing_person = find_person_by_name(name)
+            if existing_person:
+                return False, f"❌ Person '{name}' already exists in Airtable"
+            
+            # Create new person with just the name
+            person_id = airtable.create_person({"Name": name})
+            if person_id:
+                return True, f"✅ Added new friend '{name}' to Airtable"
+            else:
+                return False, f"❌ Failed to create new friend '{name}'"
+        
+        # For other commands, find the person first
         person = find_person_by_name(name)
         if not person:
             return False, f"❌ Person '{name}' not found in Airtable"
@@ -143,6 +169,9 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
 def get_admin_help() -> str:
     """Get help text for admin commands"""
     return """📋 Admin Commands:
+
+• new friend [Name]
+  Example: new friend Sarah Johnson
 
 • add birthday [Name] [YYYY-MM-DD]
   Example: add birthday John Doe 1990-05-15
