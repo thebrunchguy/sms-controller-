@@ -73,13 +73,28 @@ def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_
         
         return response.json()
 
-def get_person_by_phone(phone: str) -> Optional[Dict]:
+def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[Dict]:
     """Get a person record by phone number"""
     try:
         # Normalize the input phone number
         normalized_phone = _normalize_phone(phone)
         
-        # First try the main people table
+        # If prefer_checkins is True, try check-ins people table first
+        if prefer_checkins:
+            checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
+            if checkins_people_table:
+                response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
+                records = response.get("records", [])
+                
+                for record in records:
+                    record_phone = record.get("fields", {}).get("Phone", "")
+                    if record_phone:
+                        # Normalize the phone number from the record
+                        normalized_record_phone = _normalize_phone(record_phone)
+                        if normalized_phone == normalized_record_phone:
+                            return record
+        
+        # Try the main people table
         response = _make_request("GET", AIRTABLE_PEOPLE_TABLE)
         records = response.get("records", [])
         
@@ -91,19 +106,20 @@ def get_person_by_phone(phone: str) -> Optional[Dict]:
                 if normalized_phone == normalized_record_phone:
                     return record
         
-        # If not found in main table, try the check-ins people table
-        checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
-        if checkins_people_table:
-            response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
-            records = response.get("records", [])
-            
-            for record in records:
-                record_phone = record.get("fields", {}).get("Phone", "")
-                if record_phone:
-                    # Normalize the phone number from the record
-                    normalized_record_phone = _normalize_phone(record_phone)
-                    if normalized_phone == normalized_record_phone:
-                        return record
+        # If not found in main table and not already tried, try the check-ins people table
+        if not prefer_checkins:
+            checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
+            if checkins_people_table:
+                response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
+                records = response.get("records", [])
+                
+                for record in records:
+                    record_phone = record.get("fields", {}).get("Phone", "")
+                    if record_phone:
+                        # Normalize the phone number from the record
+                        normalized_record_phone = _normalize_phone(record_phone)
+                        if normalized_phone == normalized_record_phone:
+                            return record
         
         return None
     except Exception as e:
@@ -161,8 +177,9 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
             "Status": "Sent"  # Use the available status option
         }
         
-        if pending_changes:
-            checkin_data["Pending Changes"] = pending_changes
+        # Note: Pending Changes field may not exist in all tables
+        # if pending_changes:
+        #     checkin_data["Pending Changes"] = pending_changes
         
         if existing_records:
             # Update existing check-in

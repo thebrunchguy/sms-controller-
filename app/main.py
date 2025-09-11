@@ -106,8 +106,8 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         # Clean phone number (remove +1 prefix if present)
         from_phone = From.replace("+1", "") if From.startswith("+1") else From
         
-        # Find person by phone number
-        person_record = airtable.get_person_by_phone(from_phone)
+        # Find person by phone number (prefer check-ins table for SMS processing)
+        person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=True)
         
         if not person_record:
             # Unknown phone number - could log this for review
