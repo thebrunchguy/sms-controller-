@@ -79,8 +79,7 @@ def get_person_by_phone(phone: str) -> Optional[Dict]:
         # Normalize the input phone number
         normalized_phone = _normalize_phone(phone)
         
-        # Get all people and search through them
-        # This is less efficient but more reliable for phone number matching
+        # First try the main people table
         response = _make_request("GET", AIRTABLE_PEOPLE_TABLE)
         records = response.get("records", [])
         
@@ -91,6 +90,20 @@ def get_person_by_phone(phone: str) -> Optional[Dict]:
                 normalized_record_phone = _normalize_phone(record_phone)
                 if normalized_phone == normalized_record_phone:
                     return record
+        
+        # If not found in main table, try the check-ins people table
+        checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
+        if checkins_people_table:
+            response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
+            records = response.get("records", [])
+            
+            for record in records:
+                record_phone = record.get("fields", {}).get("Phone", "")
+                if record_phone:
+                    # Normalize the phone number from the record
+                    normalized_record_phone = _normalize_phone(record_phone)
+                    if normalized_phone == normalized_record_phone:
+                        return record
         
         return None
     except Exception as e:
@@ -137,18 +150,15 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
     """Create or update a check-in record"""
     try:
         # First try to find existing check-in
-        filter_formula = f"AND({{Person}} = '{person_id}', {{Month}} = '{month}')"
+        filter_formula = f"{{Person}} = '{person_id}'"
         endpoint = f"{AIRTABLE_CHECKINS_TABLE}?filterByFormula={filter_formula}"
         
         response = _make_request("GET", endpoint, base_url=AIRTABLE_CHECKINS_BASE_URL)
         existing_records = response.get("records", [])
         
         checkin_data = {
-            "Person": [person_id],
-            "Month": month,
-            "Status": status,
-            "Transcript": transcript,
-            "Last Message At": datetime.now().isoformat()
+            "Person": [person_id],  # Reference to person in same base
+            "Status": "Sent"  # Use the available status option
         }
         
         if pending_changes:
