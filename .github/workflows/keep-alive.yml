@@ -1,0 +1,17 @@
+name: Keep Service Alive
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping-service:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Health Endpoint
+        run: |
+          echo "Pinging service at $(date)"
+          curl -f "https://kobro-admin.onrender.com/health" || echo "Service might be sleeping, this is normal"
+          echo "Ping completed at $(date)"
