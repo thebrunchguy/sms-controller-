@@ -19,10 +19,13 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     Parse admin SMS commands
     
     Supported formats:
+    - new friend [Name]
     - add birthday [Name] [YYYY-MM-DD]
+    - add email [Name] [Email]
+    - add phone [Name] [Phone]
+    - add linkedin [Name] [LinkedIn URL]
     - change role [Name] [New Role]
     - change company [Name] [New Company]
-    - new friend [Name]
     """
     message = message.strip()
     
@@ -74,6 +77,45 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
         return {
             "command": "new_friend",
             "name": name
+        }
+    
+    # Pattern for adding email
+    email_pattern = r'^add\s+email\s+(.+?)\s+(.+)$'
+    email_match = re.match(email_pattern, message, re.IGNORECASE)
+    
+    if email_match:
+        name = email_match.group(1).strip()
+        email = email_match.group(2).strip()
+        return {
+            "command": "add_email",
+            "name": name,
+            "email": email
+        }
+    
+    # Pattern for adding phone
+    phone_pattern = r'^add\s+phone\s+(.+?)\s+(.+)$'
+    phone_match = re.match(phone_pattern, message, re.IGNORECASE)
+    
+    if phone_match:
+        name = phone_match.group(1).strip()
+        phone = phone_match.group(2).strip()
+        return {
+            "command": "add_phone",
+            "name": name,
+            "phone": phone
+        }
+    
+    # Pattern for adding LinkedIn
+    linkedin_pattern = r'^add\s+linkedin\s+(.+?)\s+(.+)$'
+    linkedin_match = re.match(linkedin_pattern, message, re.IGNORECASE)
+    
+    if linkedin_match:
+        name = linkedin_match.group(1).strip()
+        linkedin = linkedin_match.group(2).strip()
+        return {
+            "command": "add_linkedin",
+            "name": name,
+            "linkedin": linkedin
         }
     
     return None
@@ -159,6 +201,39 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
             else:
                 return False, f"❌ Failed to update company for {name}"
         
+        elif command == "add_email":
+            email = command_data.get("email")
+            
+            # Update the person record
+            success = airtable.update_person(person_id, {"Email": email})
+            
+            if success:
+                return True, f"✅ Added email {email} for {name}"
+            else:
+                return False, f"❌ Failed to update email for {name}"
+        
+        elif command == "add_phone":
+            phone = command_data.get("phone")
+            
+            # Update the person record
+            success = airtable.update_person(person_id, {"Phone": phone})
+            
+            if success:
+                return True, f"✅ Added phone {phone} for {name}"
+            else:
+                return False, f"❌ Failed to update phone for {name}"
+        
+        elif command == "add_linkedin":
+            linkedin = command_data.get("linkedin")
+            
+            # Update the person record
+            success = airtable.update_person(person_id, {"LinkedIn": linkedin})
+            
+            if success:
+                return True, f"✅ Added LinkedIn {linkedin} for {name}"
+            else:
+                return False, f"❌ Failed to update LinkedIn for {name}"
+        
         else:
             return False, f"❌ Unknown command: {command}"
             
@@ -175,6 +250,15 @@ def get_admin_help() -> str:
 
 • add birthday [Name] [YYYY-MM-DD]
   Example: add birthday John Doe 1990-05-15
+
+• add email [Name] [Email]
+  Example: add email John Doe john@example.com
+
+• add phone [Name] [Phone]
+  Example: add phone John Doe +1234567890
+
+• add linkedin [Name] [LinkedIn URL]
+  Example: add linkedin John Doe https://linkedin.com/in/johndoe
 
 • change role [Name] [New Role]
   Example: change role John Doe Senior Developer

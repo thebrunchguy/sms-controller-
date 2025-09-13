@@ -262,6 +262,9 @@ Response: "I received your message but had trouble processing it. Please try aga
 - `controls` - Show available admin commands (same as help)
 - `new_friend [name]` - Add new friend to Airtable
 - `add_birthday [name] [date]` - Add birthday for person
+- `add_email [name] [email]` - Add email for person
+- `add_phone [name] [phone]` - Add phone for person
+- `add_linkedin [name] [linkedin]` - Add LinkedIn URL for person
 - `change_role [name] [role]` - Change person's role  
 - `change_company [name] [company]` - Change person's company
 
@@ -272,6 +275,9 @@ Admin Number (+19784910236):
 ├── "controls" → Admin help message (same as help)
 ├── "new friend Sarah Johnson" → Admin command
 ├── "add_birthday John 1990-01-01" → Admin command
+├── "add_email John john@example.com" → Admin command
+├── "add_phone John +1234567890" → Admin command
+├── "add_linkedin John https://linkedin.com/in/john" → Admin command
 └── "change my birthday to 1/1/1990" → Regular SMS processing
 
 Regular Number:
