@@ -244,29 +244,11 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
 def get_admin_help() -> str:
     """Get help text for admin commands"""
     return """📋 Admin Commands:
-
 • new friend [Name]
-  Example: new friend Sarah Johnson
-
-• add birthday [Name] [YYYY-MM-DD]
-  Example: add birthday John Doe 1990-05-15
-
+• add birthday [Name] [Date]
 • add email [Name] [Email]
-  Example: add email John Doe john@example.com
-
 • add phone [Name] [Phone]
-  Example: add phone John Doe +1234567890
-
-• add linkedin [Name] [LinkedIn URL]
-  Example: add linkedin John Doe https://linkedin.com/in/johndoe
-
-• change role [Name] [New Role]
-  Example: change role John Doe Senior Developer
-
-• change company [Name] [New Company]
-  Example: change company John Doe Google
-
-• help - Show this help message
-• controls - Show this help message (same as help)
-
-Note: Use exact names as they appear in Airtable""" 
+• add linkedin [Name] [URL]
+• change role [Name] [Role]
+• change company [Name] [Company]
+• help/controls - Show commands""" 
