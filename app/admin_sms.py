@@ -80,7 +80,7 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
         }
     
     # Pattern for adding email
-    email_pattern = r'^add\s+email\s+(.+?)\s+(.+)$'
+    email_pattern = r'^add\s+email\s+(.+?)\s+([^\s]+@[^\s]+\.[^\s]+)$'
     email_match = re.match(email_pattern, message, re.IGNORECASE)
     
     if email_match:
@@ -93,7 +93,7 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
         }
     
     # Pattern for adding phone
-    phone_pattern = r'^add\s+phone\s+(.+?)\s+(.+)$'
+    phone_pattern = r'^add\s+phone\s+(.+?)\s+(\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}|[0-9]{10,11}|\+?[0-9]{10,15})$'
     phone_match = re.match(phone_pattern, message, re.IGNORECASE)
     
     if phone_match:
@@ -106,7 +106,7 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
         }
     
     # Pattern for adding LinkedIn
-    linkedin_pattern = r'^add\s+linkedin\s+(.+?)\s+(.+)$'
+    linkedin_pattern = r'^add\s+linkedin\s+(.+?)\s+(https?://[^\s]+|linkedin\.com/[^\s]+)$'
     linkedin_match = re.match(linkedin_pattern, message, re.IGNORECASE)
     
     if linkedin_match:
