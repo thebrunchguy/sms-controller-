@@ -29,13 +29,31 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     """
     message = message.strip()
     
-    # Pattern for adding birthday
-    birthday_pattern = r'^add\s+birthday\s+(.+?)\s+(\d{4}-\d{2}-\d{2})$'
-    birthday_match = re.match(birthday_pattern, message, re.IGNORECASE)
+    # Pattern for adding birthday - support both YYYY-MM-DD and MM/DD/YYYY formats
+    birthday_pattern_iso = r'^add\s+birthday\s+(.+?)\s+(\d{4}-\d{2}-\d{2})$'
+    birthday_pattern_us = r'^add\s+birthday\s+(.+?)\s+(\d{1,2}/\d{1,2}/\d{4})$'
     
-    if birthday_match:
-        name = birthday_match.group(1).strip()
-        birthday = birthday_match.group(2)
+    birthday_match_iso = re.match(birthday_pattern_iso, message, re.IGNORECASE)
+    birthday_match_us = re.match(birthday_pattern_us, message, re.IGNORECASE)
+    
+    if birthday_match_iso:
+        name = birthday_match_iso.group(1).strip()
+        birthday = birthday_match_iso.group(2)
+        return {
+            "command": "add_birthday",
+            "name": name,
+            "birthday": birthday
+        }
+    elif birthday_match_us:
+        name = birthday_match_us.group(1).strip()
+        birthday_str = birthday_match_us.group(2)
+        # Convert MM/DD/YYYY to YYYY-MM-DD
+        try:
+            from datetime import datetime
+            birthday_date = datetime.strptime(birthday_str, "%m/%d/%Y")
+            birthday = birthday_date.strftime("%Y-%m-%d")
+        except ValueError:
+            return None
         return {
             "command": "add_birthday",
             "name": name,
