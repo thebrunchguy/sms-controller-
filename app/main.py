@@ -1,5 +1,6 @@
 import os
 import json
+import httpx
 from datetime import datetime, date
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, Request, HTTPException
@@ -772,4 +773,57 @@ async def debug_airtable():
         
     except Exception as e:
         return {"error": str(e), "traceback": str(e.__traceback__)}
+
+@app.get("/twilio/logs")
+def get_twilio_logs(limit: int = 20):
+    """Get recent Twilio message logs"""
+    try:
+        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        
+        if not account_sid or not auth_token:
+            return {"error": "Twilio credentials not configured"}
+        
+        # Fetch recent messages
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+        params = {
+            "PageSize": limit,
+            "To": os.getenv("TWILIO_PHONE_NUMBER", ""),
+            "From": "9784910236"  # Your admin number
+        }
+        
+        response = httpx.get(
+            url,
+            params=params,
+            auth=(account_sid, auth_token)
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            messages = []
+            
+            for msg in data.get("messages", []):
+                messages.append({
+                    "sid": msg.get("sid"),
+                    "from": msg.get("from"),
+                    "to": msg.get("to"),
+                    "body": msg.get("body"),
+                    "status": msg.get("status"),
+                    "direction": msg.get("direction"),
+                    "date_created": msg.get("date_created"),
+                    "date_sent": msg.get("date_sent"),
+                    "error_code": msg.get("error_code"),
+                    "error_message": msg.get("error_message")
+                })
+            
+            return {
+                "ok": True,
+                "messages": messages,
+                "count": len(messages)
+            }
+        else:
+            return {"error": f"Twilio API error: {response.status_code} - {response.text}"}
+            
+    except Exception as e:
+        return {"error": str(e)}
 
