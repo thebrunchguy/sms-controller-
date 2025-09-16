@@ -174,6 +174,9 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
             # Create new person with just the name
             person_id = airtable.create_person({"Name": name})
             if person_id:
+                # Add small delay to ensure Airtable has processed the write
+                import time
+                time.sleep(0.5)
                 return True, f"✅ Added new friend '{name}' to Airtable"
             else:
                 return False, f"❌ Failed to create new friend '{name}'"
