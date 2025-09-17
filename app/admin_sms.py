@@ -1,6 +1,18 @@
 import re
+import asyncio
 from typing import Dict, Any, Optional, Tuple
 from . import airtable
+
+# Import MCP client for complex parsing
+try:
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from mcp_parser.mcp_sync_client import test_mcp_sync
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    print("MCP client not available, falling back to regex-only parsing")
 
 # Admin phone numbers (add more as needed)
 ADMIN_NUMBERS = {
@@ -16,7 +28,9 @@ def is_admin_number(phone: str) -> bool:
 
 def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     """
-    Parse admin SMS commands
+    Parse admin SMS commands using hybrid approach:
+    1. Try regex patterns first (fast, simple commands)
+    2. Fall back to MCP for complex natural language
     
     Supported formats:
     - new friend [Name]
@@ -26,8 +40,32 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     - add linkedin [Name] [LinkedIn URL]
     - change role [Name] [New Role]
     - change company [Name] [New Company]
+    - Natural language: "can you add linkedin for bobby housel - here's the url..."
     """
     message = message.strip()
+    
+    # First try regex patterns (fast, simple commands)
+    regex_result = _parse_with_regex(message)
+    if regex_result:
+        return regex_result
+    
+    # If regex fails and MCP is available, try MCP for complex parsing
+    if MCP_AVAILABLE:
+        try:
+            # Use synchronous MCP client that works within async contexts
+            mcp_result = test_mcp_sync(message)
+            
+            if mcp_result and mcp_result.get("command") and mcp_result.get("confidence", 0) > 0.5:
+                # Convert MCP result to our expected format
+                return _convert_mcp_result(mcp_result)
+        except Exception as e:
+            print(f"Error with MCP parsing: {e}")
+            pass
+    
+    return None
+
+def _parse_with_regex(message: str) -> Optional[Dict[str, Any]]:
+    """Parse using regex patterns (original logic)"""
     
     # Pattern for adding birthday - support both YYYY-MM-DD and MM/DD/YYYY formats
     birthday_pattern_iso = r'^add\s+birthday\s+(.+?)\s+(\d{4}-\d{2}-\d{2})$'
@@ -97,8 +135,8 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
             "name": name
         }
     
-    # Pattern for adding email
-    email_pattern = r'^add\s+email\s+(.+?)\s+([^\s]+@[^\s]+\.[^\s]+)$'
+    # Pattern for adding email - handle both quoted and unquoted emails
+    email_pattern = r'^add\s+email\s+(.+?)\s+["\']?([^\s"\'<>]+@[^\s"\'<>]+\.[^\s"\'<>]+)["\']?$'
     email_match = re.match(email_pattern, message, re.IGNORECASE)
     
     if email_match:
@@ -110,8 +148,8 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
             "email": email
         }
     
-    # Pattern for adding phone
-    phone_pattern = r'^add\s+phone\s+(.+?)\s+(\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}|[0-9]{10,11}|\+?[0-9]{10,15})$'
+    # Pattern for adding phone - handle both quoted and unquoted phone numbers
+    phone_pattern = r'^add\s+phone\s+(.+?)\s+["\']?(\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}|[0-9]{10,11}|\+?[0-9]{10,15})["\']?$'
     phone_match = re.match(phone_pattern, message, re.IGNORECASE)
     
     if phone_match:
@@ -123,8 +161,8 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
             "phone": phone
         }
     
-    # Pattern for adding LinkedIn
-    linkedin_pattern = r'^add\s+linkedin\s+(.+?)\s+(https?://[^\s]+|linkedin\.com/[^\s]+)$'
+    # Pattern for adding LinkedIn - handle both quoted and unquoted URLs
+    linkedin_pattern = r'^add\s+linkedin\s+(.+?)\s+["\']?(https?://[^\s"\'<>]+|linkedin\.com/[^\s"\'<>]+)["\']?$'
     linkedin_match = re.match(linkedin_pattern, message, re.IGNORECASE)
     
     if linkedin_match:
@@ -134,6 +172,54 @@ def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
             "command": "add_linkedin",
             "name": name,
             "linkedin": linkedin
+        }
+    
+    return None
+
+def _convert_mcp_result(mcp_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Convert MCP result to our expected format"""
+    if not mcp_result or not mcp_result.get("command"):
+        return None
+    
+    command = mcp_result["command"]
+    name = mcp_result.get("name")
+    extracted_data = mcp_result.get("extracted_data", {})
+    
+    # Convert MCP command names to our expected format
+    if command == "add_linkedin":
+        return {
+            "command": "add_linkedin",
+            "name": name,
+            "linkedin": mcp_result.get("linkedin") or extracted_data.get("linkedin")
+        }
+    elif command == "add_email":
+        return {
+            "command": "add_email", 
+            "name": name,
+            "email": mcp_result.get("email") or extracted_data.get("email")
+        }
+    elif command == "add_phone":
+        return {
+            "command": "add_phone",
+            "name": name,
+            "phone": mcp_result.get("phone") or extracted_data.get("phone")
+        }
+    elif command == "add_birthday":
+        return {
+            "command": "add_birthday",
+            "name": name,
+            "birthday": mcp_result.get("birthday") or extracted_data.get("birthday")
+        }
+    elif command == "new_friend":
+        return {
+            "command": "new_friend",
+            "name": name
+        }
+    elif command == "update_company":
+        return {
+            "command": "change_company",
+            "name": name,
+            "new_company": mcp_result.get("company") or extracted_data.get("company")
         }
     
     return None
