@@ -31,8 +31,6 @@ Natural language command parsing using MCP framework:
 - `final_mcp_client.py` - MCP client for server communication
 - `mcp_sync_client.py` - Synchronous MCP client (works in async contexts)
 - `mcp_tuple_converter.py` - Fix for MCP framework Pydantic validation issues
-- `mcp_server.py` - Alternative MCP server implementation
-- `mcp_client.py` - Alternative MCP client implementation
 
 ### 🔄 `keep_alive/` - Keep-Alive Scripts
 Scripts to keep the application running:

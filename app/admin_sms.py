@@ -221,6 +221,14 @@ def _convert_mcp_result(mcp_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "name": name,
             "new_company": mcp_result.get("company") or extracted_data.get("company")
         }
+    elif command == "create_reminder":
+        return {
+            "command": "create_reminder",
+            "name": name,
+            "reminder_action": mcp_result.get("reminder_action", ""),
+            "reminder_timeline": mcp_result.get("reminder_timeline", "unspecified"),
+            "reminder_priority": mcp_result.get("reminder_priority", "medium")
+        }
     
     return None
 
@@ -340,6 +348,24 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
                 return True, f"✅ Added LinkedIn {linkedin} for {name}"
             else:
                 return False, f"❌ Failed to update LinkedIn for {name}"
+        
+        elif command == "create_reminder":
+            reminder_action = command_data.get("reminder_action", "")
+            reminder_timeline = command_data.get("reminder_timeline", "unspecified")
+            reminder_priority = command_data.get("reminder_priority", "medium")
+            
+            # Create reminder using the new function
+            success = airtable.create_reminder_for_person(
+                person_name=name,
+                reminder_text=reminder_action,
+                due_date=None  # Will be calculated from timeline
+            )
+            
+            if success:
+                timeline_text = f" (due: {reminder_timeline})" if reminder_timeline != "unspecified" else ""
+                return True, f"✅ Reminder created for {name}: {reminder_action}{timeline_text}"
+            else:
+                return False, f"❌ Failed to create reminder for {name}"
         
         else:
             return False, f"❌ Unknown command: {command}"

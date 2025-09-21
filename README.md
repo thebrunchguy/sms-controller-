@@ -167,8 +167,15 @@ POST /twilio/status
 ---
 
 ### Quick start
-1) Fill `.env` from `.env.example`  
+1) Fill `config/config.env` from `config/config.env.example`  
 2) `pip install -r requirements.txt`  
-3) `uvicorn app.main:app --reload`  
+3) `python3 run.py` or `uvicorn app.main:app --reload`  
 4) Point Twilio webhook to `POST {APP_BASE_URL}/twilio/inbound`  
 5) Trigger `POST {APP_BASE_URL}/jobs/send-monthly` to test outbound
+
+### Project Structure
+- **Main App**: `app/` - FastAPI application with SMS processing, Airtable integration, and admin commands
+- **MCP Parser**: `mcp_parser/` - Natural language command parsing using MCP framework
+- **Documentation**: `docs/` - Comprehensive setup and implementation guides
+- **Tests**: `tests/` - Complete test suite for all components
+- **Configuration**: `config/` - Environment configuration files

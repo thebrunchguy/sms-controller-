@@ -6,8 +6,6 @@ This package contains:
 - final_mcp_client.py: Client for communicating with the MCP server
 - mcp_sync_client.py: Synchronous client that works within async contexts
 - mcp_tuple_converter.py: Utility to fix MCP framework Pydantic validation issues
-- mcp_server.py: Alternative MCP server implementation
-- mcp_client.py: Alternative MCP client implementation
 """
 
 from .mcp_sync_client import test_mcp_sync

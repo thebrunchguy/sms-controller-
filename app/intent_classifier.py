@@ -28,7 +28,7 @@ INTENT_CLASSIFICATION_SCHEMA = {
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "target_table": {
             "type": "string",
-            "enum": ["Core People", "SMS Check-ins - From Core", "None"]
+            "enum": ["Core People", "SMS Check-ins - From Core", "Reminders", "None"]
         },
         "extracted_data": {
             "type": "object",
@@ -76,7 +76,7 @@ Classify the user's intent and determine which Airtable table should be updated 
 Available intents and their target tables:
 - update_person_info → Core People table: Updates to personal info (birthday, company/role stored in How We Met field, location stored in How We Met field)
 - manage_tags → Core People table: Adding or removing tags (General Tag, Location Tag, Community Tag, Communication Tag)
-- create_reminder → SMS Check-ins - From Core table: Creating a reminder/task for future action
+- create_reminder → Reminders table: Creating a reminder/task for future action
 - create_note → Core People table: Adding notes (stored in How We Met field)
 - schedule_followup → SMS Check-ins - From Core table: Scheduling future check-ins or meetings
 - no_change → None: Confirming no updates needed

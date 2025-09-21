@@ -83,6 +83,16 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResult:
                 r"(\w+(?:\s+\w+)*).*?works.*?at.*?(\w+(?:\s+\w+)*)",
                 r"(\w+(?:\s+\w+)*).*?company.*?(\w+(?:\s+\w+)*)",
                 r"update.*?(\w+(?:\s+\w+)*).*?company.*?(\w+(?:\s+\w+)*)"
+            ],
+            "create_reminder": [
+                r"remind.*?me.*?to.*?(\w+(?:\s+\w+)*).*?(next\s+week|tomorrow|next\s+month|in\s+a\s+few\s+days|next\s+year)",
+                r"remind.*?me.*?to.*?(\w+(?:\s+\w+)*)",
+                r"can.*?you.*?remind.*?me.*?to.*?(\w+(?:\s+\w+)*).*?(next\s+week|tomorrow|next\s+month|in\s+a\s+few\s+days|next\s+year)",
+                r"can.*?you.*?remind.*?me.*?to.*?(\w+(?:\s+\w+)*)",
+                r"set.*?a.*?reminder.*?to.*?(\w+(?:\s+\w+)*).*?(next\s+week|tomorrow|next\s+month|in\s+a\s+few\s+days|next\s+year)",
+                r"set.*?a.*?reminder.*?to.*?(\w+(?:\s+\w+)*)",
+                r"create.*?a.*?reminder.*?to.*?(\w+(?:\s+\w+)*).*?(next\s+week|tomorrow|next\s+month|in\s+a\s+few\s+days|next\s+year)",
+                r"create.*?a.*?reminder.*?to.*?(\w+(?:\s+\w+)*)"
             ]
         }
         
@@ -111,6 +121,38 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResult:
                     elif command_type == "update_company":
                         result["name"] = match.group(1).strip()
                         result["company"] = match.group(2).strip()
+                    elif command_type == "create_reminder":
+                        # Extract the reminder action and timeline
+                        reminder_text = match.group(1).strip()
+                        result["reminder_action"] = reminder_text
+                        
+                        # Try to extract person name from the action text
+                        # Look for common patterns like "reach out to David", "follow up with Mikayla", etc.
+                        person_name = None
+                        action_lower = reminder_text.lower()
+                        
+                        # Common patterns for person names in reminder actions
+                        if "reach out to" in action_lower:
+                            person_name = reminder_text.split("reach out to")[-1].strip().split()[0]
+                        elif "follow up with" in action_lower:
+                            person_name = reminder_text.split("follow up with")[-1].strip().split()[0]
+                        elif "call" in action_lower:
+                            person_name = reminder_text.split("call")[-1].strip().split()[0]
+                        elif "check in with" in action_lower:
+                            person_name = reminder_text.split("check in with")[-1].strip().split()[0]
+                        elif "contact" in action_lower:
+                            person_name = reminder_text.split("contact")[-1].strip().split()[0]
+                        
+                        if person_name:
+                            result["name"] = person_name
+                        
+                        # Check if there's a timeline in the match
+                        if len(match.groups()) > 1 and match.group(2):
+                            result["reminder_timeline"] = match.group(2).strip()
+                        else:
+                            result["reminder_timeline"] = "unspecified"
+                        
+                        result["reminder_priority"] = "medium"
                     
                     logger.info(f"Returning result: {result}")
                     return result

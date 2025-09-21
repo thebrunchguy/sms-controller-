@@ -136,22 +136,19 @@ class IntentHandlers:
         if not action:
             return False, "❌ No reminder action specified"
         
+        # Get person's name for the reminder creation
+        person_name = person_fields.get("Name", "Unknown")
+        
         # Calculate due date based on timeline
         due_date = _parse_timeline_to_date(timeline)
+        due_date_str = due_date.strftime("%Y-%m-%d") if due_date else None
         
-        # Create reminder record
-        reminder_data = {
-            "Person": [person_id],
-            "Action": action,
-            "Timeline": timeline,
-            "Due Date": due_date.isoformat() if due_date else None,
-            "Priority": priority.title(),
-            "Status": "Pending",
-            "Created At": datetime.now().isoformat(),
-            "Created By": "SMS"
-        }
-        
-        success = airtable.create_reminder(reminder_data)
+        # Create reminder using the new function that links to person
+        success = airtable.create_reminder_for_person(
+            person_name=person_name,
+            reminder_text=action,
+            due_date=due_date_str
+        )
         
         if success:
             due_text = f" (due: {timeline})" if timeline else ""

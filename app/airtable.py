@@ -17,12 +17,15 @@ AIRTABLE_CHECKINS_TABLE = os.getenv("AIRTABLE_CHECKINS_TABLE", "Check-ins")
 AIRTABLE_MESSAGES_TABLE = os.getenv("AIRTABLE_MESSAGES_TABLE", "Messages")
 
 # Add new table configurations
+AIRTABLE_REMINDERS_BASE_ID = os.getenv("AIRTABLE_REMINDERS_BASE_ID", AIRTABLE_BASE_ID)
+AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE = os.getenv("AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE", "People")
 AIRTABLE_REMINDERS_TABLE = os.getenv("AIRTABLE_REMINDERS_TABLE", "Reminders")
 AIRTABLE_NOTES_TABLE = os.getenv("AIRTABLE_NOTES_TABLE", "Notes")
 AIRTABLE_FOLLOWUPS_TABLE = os.getenv("AIRTABLE_FOLLOWUPS_TABLE", "Followups")
 
 AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
 AIRTABLE_CHECKINS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_CHECKINS_BASE_ID}"
+AIRTABLE_REMINDERS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_REMINDERS_BASE_ID}"
 
 class AirtableError(Exception):
     """Custom exception for Airtable API errors"""
@@ -35,7 +38,7 @@ def _get_headers():
         "Content-Type": "application/json"
     }
 
-def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_url: Optional[str] = None) -> Dict:
+def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_url: Optional[str] = None, params: Optional[Dict] = None) -> Dict:
     """Make a request to Airtable API"""
     if base_url is None:
         base_url = AIRTABLE_BASE_URL
@@ -60,7 +63,7 @@ def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_
     # For now, we'll use synchronous requests with httpx
     with httpx.Client() as client:
         if method == "GET":
-            response = client.get(url, headers=_get_headers())
+            response = client.get(url, headers=_get_headers(), params=params)
         elif method == "POST":
             response = client.post(url, headers=_get_headers(), json=data)
         elif method == "PATCH":
@@ -319,11 +322,51 @@ def create_reminder(reminder_data: Dict[str, Any]) -> bool:
     """Create a new reminder record in the Reminders table"""
     try:
         endpoint = f"{AIRTABLE_REMINDERS_TABLE}"
-        response = _make_request("POST", endpoint, {"fields": reminder_data})
+        response = _make_request("POST", endpoint, {"fields": reminder_data}, base_url=AIRTABLE_REMINDERS_BASE_URL)
         return response is not None
     except Exception as e:
         print(f"Error creating reminder: {e}")
         return False
+
+def create_reminder_for_person(person_name: str, reminder_text: str, due_date: str = None) -> bool:
+    """Create a reminder linked to a specific person"""
+    try:
+        # First, find the person in the main people table
+        person_record = find_person_in_reminders_base(person_name)
+        if not person_record:
+            print(f"Person '{person_name}' not found in reminders base")
+            return False
+        
+        # Create the reminder with link to person
+        reminder_data = {
+            "Reminder": reminder_text,
+            "Reminders Main View": [person_record["id"]]  # Link to person record
+        }
+        
+        if due_date:
+            reminder_data["Due date"] = due_date
+        
+        return create_reminder(reminder_data)
+        
+    except Exception as e:
+        print(f"Error creating reminder for person: {e}")
+        return False
+
+def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
+    """Find a person in the reminders base main people table"""
+    try:
+        endpoint = f"{AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE}"
+        params = {"filterByFormula": f"SEARCH('{person_name}', {{Name}})"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_REMINDERS_BASE_URL)
+        
+        records = response.get("records", [])
+        if records:
+            return records[0]  # Return first match
+        return None
+        
+    except Exception as e:
+        print(f"Error finding person in reminders base: {e}")
+        return None
 
 def create_note(note_data: Dict[str, Any]) -> bool:
     """Create a new note record in the Notes table"""
@@ -350,7 +393,7 @@ def get_reminders_for_person(person_id: str) -> List[Dict[str, Any]]:
     try:
         endpoint = f"{AIRTABLE_REMINDERS_TABLE}"
         params = {"filterByFormula": f"{{Person}} = '{person_id}'"}
-        response = _make_request("GET", endpoint, params=params)
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_REMINDERS_BASE_URL)
         return response.get("records", [])
     except Exception as e:
         print(f"Error getting reminders for person: {e}")
@@ -386,7 +429,7 @@ def update_reminder_status(reminder_id: str, status: str, completed_at: Optional
             updates["Completed At"] = completed_at
         
         endpoint = f"{AIRTABLE_REMINDERS_TABLE}/{reminder_id}"
-        response = _make_request("PATCH", endpoint, {"fields": updates})
+        response = _make_request("PATCH", endpoint, {"fields": updates}, base_url=AIRTABLE_REMINDERS_BASE_URL)
         return response is not None
     except Exception as e:
         print(f"Error updating reminder status: {e}")
