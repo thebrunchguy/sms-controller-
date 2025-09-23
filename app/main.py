@@ -150,8 +150,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         )
         
         # Check if this is an admin number
-        # if admin_sms.is_admin_number(from_phone):
-        if True:  # Temporarily allow all numbers for testing
+        if admin_sms.is_admin_number(from_phone):
             print(f"🔐 Admin SMS from {from_phone}")
             
             # Handle admin commands
