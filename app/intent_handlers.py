@@ -136,8 +136,8 @@ class IntentHandlers:
         if not action:
             return False, "❌ I couldn't determine what you'd like me to remind you about. Please be more specific, like 'remind me to call John' or 'remind me to follow up on the project'"
         
-        # Get person's name for the reminder creation
-        person_name = person_fields.get("Name", "Unknown")
+        # Extract person's name from the reminder action
+        person_name = _extract_person_name_from_action(action, person_fields)
         
         # Calculate due date based on timeline using the new extractor
         try:
@@ -225,6 +225,37 @@ class IntentHandlers:
             return True, f"✅ Follow-up scheduled: {timeline}"
         else:
             return False, "❌ I couldn't schedule the follow-up in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+
+def _extract_person_name_from_action(action: str, person_fields: Dict[str, Any]) -> str:
+    """Extract person name from reminder action or fall back to current person"""
+    import re
+    
+    # Common patterns for person names in reminder actions
+    patterns = [
+        # Pattern 1: Match until time words
+        r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+?)(?:\s+(?:tomorrow|next|at|in|later))',
+        # Pattern 2: Match until end of string (for simple cases like "text david kobrosky")
+        r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+)$',
+        # Pattern 3: Match until punctuation
+        r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+?)(?:\s|,|\.)'
+    ]
+    
+    action_lower = action.lower()
+    
+    # Look for person names in the action
+    for pattern in patterns:
+        match = re.search(pattern, action_lower)
+        if match:
+            extracted_name = match.group(1).strip()
+            # Clean up the name (remove extra words, capitalize properly)
+            name_parts = extracted_name.split()
+            if len(name_parts) >= 2:  # At least first and last name
+                return ' '.join([part.capitalize() for part in name_parts])
+            elif len(name_parts) == 1:
+                return name_parts[0].capitalize()
+    
+    # If no person name found in action, use current person's name
+    return person_fields.get("Name", "Unknown")
 
 def _normalize_birthday(birthday_str: str) -> Optional[str]:
     """Normalize birthday to YYYY-MM-DD format"""
