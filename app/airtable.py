@@ -356,12 +356,22 @@ def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
     """Find a person in the reminders base main people table"""
     try:
         endpoint = f"{AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE}"
-        params = {"filterByFormula": f"SEARCH('{person_name}', {{Name}})"}
+        # Use case-insensitive search with LOWER() function
+        params = {"filterByFormula": f"SEARCH(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
         response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_REMINDERS_BASE_URL)
         
         records = response.get("records", [])
         if records:
             return records[0]  # Return first match
+        
+        # If no exact match, try partial matching
+        params = {"filterByFormula": f"FIND(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_REMINDERS_BASE_URL)
+        
+        records = response.get("records", [])
+        if records:
+            return records[0]  # Return first match
+            
         return None
         
     except Exception as e:
