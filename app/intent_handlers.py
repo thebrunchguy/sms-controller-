@@ -232,8 +232,8 @@ def _extract_person_name_from_action(action: str, person_fields: Dict[str, Any])
     
     # Common patterns for person names in reminder actions
     patterns = [
-        # Pattern 1: Match until time words
-        r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+?)(?:\s+(?:tomorrow|next|at|in|later))',
+        # Pattern 1: Match until time words (include 'today')
+        r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+?)(?:\s+(?:tomorrow|today|next|at|in|later))',
         # Pattern 2: Match until end of string (for simple cases like "text david kobrosky")
         r'(?:text|call|email|reach out to|follow up with|check in with|contact)\s+([A-Za-z\s]+)$',
         # Pattern 3: Match until punctuation
@@ -254,8 +254,9 @@ def _extract_person_name_from_action(action: str, person_fields: Dict[str, Any])
             elif len(name_parts) == 1:
                 return name_parts[0].capitalize()
     
-    # If no person name found in action, use current person's name
-    return person_fields.get("Name", "Unknown")
+    # If no person name found in action, use current person's name, ensure non-None
+    fallback_name = person_fields.get("Name")
+    return fallback_name or "Unknown"
 
 def _normalize_birthday(birthday_str: str) -> Optional[str]:
     """Normalize birthday to YYYY-MM-DD format"""
