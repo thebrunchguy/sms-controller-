@@ -334,7 +334,7 @@ def create_reminder_for_person(person_name: str, reminder_text: str, due_date: s
         # First, find the person in the main people table
         person_record = find_person_in_reminders_base(person_name)
         if not person_record:
-            print(f"Person '{person_name}' not found in reminders base")
+            print(f"Person '{person_name}' not found in reminders base - DEBUG: Base={AIRTABLE_REMINDERS_BASE_ID}, Table={AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE}")
             return False
         
         # Create the reminder with link to person
