@@ -358,9 +358,14 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                         extracted_data, person_id, person_fields
                     )
                 elif intent == "unclear":
-                    response_message = "I received your message but need more context. Please provide specific details about what you'd like to do."
+                    # Check if there's a custom error message from the intent classifier
+                    error_message = extracted_data.get("error_message", "")
+                    if error_message:
+                        response_message = error_message
+                    else:
+                        response_message = "I received your message but couldn't understand what you'd like me to do. Please try rephrasing with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
                 else:
-                    response_message = "I'm not sure how to help with that. Please try rephrasing your message."
+                    response_message = "I'm not sure how to help with that. Please try rephrasing your message with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
                 
                 # Send response
                 twilio_utils.send_sms(

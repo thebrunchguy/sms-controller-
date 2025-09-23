@@ -70,16 +70,16 @@ class IntentHandlers:
                     break
             
             if not main_person_id:
-                return False, "❌ Could not find matching record in main people table"
+                return False, "❌ I couldn't find your profile in the main system to update. This might be due to a name or email mismatch. Please contact support if this continues."
             
             success = airtable.update_person(main_person_id, updates)
             if success:
                 updated_fields = list(updates.keys())
                 return True, f"✅ Updated {', '.join(updated_fields)} in your profile"
             else:
-                return False, "❌ Failed to update your information"
+                return False, "❌ I couldn't update your information in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
         
-        return False, "❌ No valid updates found"
+        return False, "❌ I couldn't determine what information you'd like me to update. Please be specific, like 'update my birthday to 03/14/1999' or 'update my company to Tech Corp'"
     
     @staticmethod
     def handle_manage_tags(
@@ -93,7 +93,7 @@ class IntentHandlers:
         tags_to_remove = extracted_data.get("tags_to_remove", [])
         
         if not tags_to_add and not tags_to_remove:
-            return False, "❌ No tag operations specified"
+            return False, "❌ I couldn't determine which tags you'd like to add or remove. Please be specific, like 'tag me with mentor' or 'remove the developer tag'"
         
         # Get current tags from People table
         current_tags = person_fields.get("Tags", [])
@@ -119,7 +119,7 @@ class IntentHandlers:
                 messages.append(f"Removed: {', '.join(tags_to_remove)}")
             return True, f"✅ Tags updated - {', '.join(messages)}"
         else:
-            return False, "❌ Failed to update tags"
+            return False, "❌ I couldn't update your tags in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
     @staticmethod
     def handle_create_reminder(
@@ -134,14 +134,20 @@ class IntentHandlers:
         priority = extracted_data.get("reminder_priority", "medium")
         
         if not action:
-            return False, "❌ No reminder action specified"
+            return False, "❌ I couldn't determine what you'd like me to remind you about. Please be more specific, like 'remind me to call John' or 'remind me to follow up on the project'"
         
         # Get person's name for the reminder creation
         person_name = person_fields.get("Name", "Unknown")
         
-        # Calculate due date based on timeline
-        due_date = _parse_timeline_to_date(timeline)
-        due_date_str = due_date.strftime("%Y-%m-%d") if due_date else None
+        # Calculate due date based on timeline using the new extractor
+        try:
+            from .timeline_extractor import parse_timeline_to_datetime
+            due_date = parse_timeline_to_datetime(timeline)
+        except ImportError:
+            # Fallback to old method
+            due_date = _parse_timeline_to_date(timeline)
+        
+        due_date_str = due_date.strftime("%Y-%m-%d %H:%M:%S") if due_date else None
         
         # Create reminder using the new function that links to person
         success = airtable.create_reminder_for_person(
@@ -154,7 +160,7 @@ class IntentHandlers:
             due_text = f" (due: {timeline})" if timeline else ""
             return True, f"✅ Reminder created: {action}{due_text}"
         else:
-            return False, "❌ Failed to create reminder"
+            return False, "❌ I couldn't create the reminder in your system. This might be due to a connection issue or missing information. Please try again or contact support if the problem persists."
     
     @staticmethod
     def handle_create_note(
@@ -167,7 +173,7 @@ class IntentHandlers:
         note_content = extracted_data.get("note_content", "")
         
         if not note_content:
-            return False, "❌ No note content specified"
+            return False, "❌ I couldn't determine what note you'd like me to add. Please be more specific, like 'note: John mentioned he's interested in the PM role'"
         
         # Create note record
         note_data = {
@@ -183,7 +189,7 @@ class IntentHandlers:
         if success:
             return True, f"✅ Note added: {note_content[:50]}{'...' if len(note_content) > 50 else ''}"
         else:
-            return False, "❌ Failed to create note"
+            return False, "❌ I couldn't save the note to your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
     @staticmethod
     def handle_schedule_followup(
@@ -197,7 +203,7 @@ class IntentHandlers:
         reason = extracted_data.get("followup_reason", "")
         
         if not timeline:
-            return False, "❌ No follow-up timeline specified"
+            return False, "❌ I couldn't determine when you'd like to schedule the follow-up. Please specify a time, like 'follow up next week' or 'follow up in 2 weeks'"
         
         # Calculate follow-up date
         followup_date = _parse_timeline_to_date(timeline)
@@ -218,7 +224,7 @@ class IntentHandlers:
         if success:
             return True, f"✅ Follow-up scheduled: {timeline}"
         else:
-            return False, "❌ Failed to schedule follow-up"
+            return False, "❌ I couldn't schedule the follow-up in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
 
 def _normalize_birthday(birthday_str: str) -> Optional[str]:
     """Normalize birthday to YYYY-MM-DD format"""

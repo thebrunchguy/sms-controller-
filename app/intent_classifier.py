@@ -2,6 +2,10 @@ import os
 import json
 from typing import Dict, Any, Optional
 import openai
+from dotenv import load_dotenv
+
+# Load environment variables from config file
+load_dotenv('config/config.env')
 
 # OpenAI configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -120,9 +124,33 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
     """
     Fallback classification using simple keyword matching
     """
-    message_lower = message.lower()
+    message_lower = message.lower().strip()
     
-    # Simple keyword-based classification
+    # Check for greetings and casual conversation first
+    greeting_words = ["hello", "hi", "hey", "how are you", "what's up", "good morning", "good afternoon", "good evening"]
+    if any(word in message_lower for word in greeting_words):
+        return {
+            "intent": "unclear",
+            "confidence": 0.3,
+            "target_table": "None",
+            "extracted_data": {
+                "error_message": "Hello! I'm here to help you manage your information. You can ask me to 'remind you to...', 'update your...', or 'add a note...'. What would you like me to help you with?"
+            }
+        }
+    
+    # Check for questions
+    question_words = ["what", "how", "when", "where", "why", "can you", "do you", "are you"]
+    if any(word in message_lower for word in question_words):
+        return {
+            "intent": "unclear",
+            "confidence": 0.3,
+            "target_table": "None",
+            "extracted_data": {
+                "error_message": "I'm designed to help you manage your information and reminders. You can ask me to 'remind you to...', 'update your...', or 'add a note...'. What specific action would you like me to help you with?"
+            }
+        }
+    
+    # Simple keyword-based classification for actionable intents
     if any(word in message_lower for word in ["birthday", "born", "birth"]):
         return {
             "intent": "update_person_info",
@@ -144,7 +172,7 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
             "target_table": "SMS Check-ins - From Core",
             "extracted_data": {
                 "reminder_action": message,
-                "reminder_timeline": "unspecified",
+                "reminder_timeline": _extract_timeline(message),
                 "reminder_priority": "medium"
             }
         }
@@ -160,8 +188,47 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
             "intent": "unclear",
             "confidence": 0.3,
             "target_table": "None",
-            "extracted_data": {}
+            "extracted_data": {
+                "error_message": "I couldn't understand what you'd like me to do. Please try rephrasing your message with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
+            }
         }
+
+def _extract_timeline(message: str) -> str:
+    """Extract timeline from message using the comprehensive timeline extractor"""
+    try:
+        from .timeline_extractor import extract_timeline
+        return extract_timeline(message)
+    except ImportError:
+        # Fallback to simple extraction if timeline_extractor is not available
+        import re
+        message_lower = message.lower()
+        
+        # Common timeline patterns
+        timeline_patterns = [
+            r'(next\s+week)',
+            r'(next\s+month)',
+            r'(next\s+year)',
+            r'(tomorrow)',
+            r'(in\s+a\s+few\s+days)',
+            r'(in\s+a\s+couple\s+days)',
+            r'(in\s+a\s+few\s+weeks)',
+            r'(in\s+a\s+couple\s+weeks)',
+            r'(in\s+a\s+few\s+months)',
+            r'(in\s+a\s+couple\s+months)',
+            r'(in\s+\d+\s+days?)',
+            r'(in\s+\d+\s+weeks?)',
+            r'(in\s+\d+\s+months?)',
+            r'(this\s+week)',
+            r'(this\s+month)',
+            r'(this\s+year)'
+        ]
+        
+        for pattern in timeline_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                return match.group(1)
+        
+        return "unspecified"
 
 def _extract_birthday(message: str) -> str:
     """Extract birthday from message using regex"""
