@@ -136,8 +136,13 @@ class IntentHandlers:
         if not action:
             return False, "❌ I couldn't determine what you'd like me to remind you about. Please be more specific, like 'remind me to call John' or 'remind me to follow up on the project'"
         
-        # Extract person's name from the reminder action
-        person_name = _extract_person_name_from_action(action, person_fields)
+        # Determine target person's name
+        # Prefer explicit target from classifier if present
+        person_name = extracted_data.get("target_person") or _extract_person_name_from_action(action, person_fields)
+
+        # Guard against missing/invalid person name
+        if not person_name or str(person_name).strip().lower() in ["none", "unknown"]:
+            return False, "❌ I couldn't determine who you'd like this reminder to involve. Please specify a name, like 'remind me to text John Doe today'."
         
         # Calculate due date based on timeline using the new extractor
         try:
