@@ -5,7 +5,7 @@ from datetime import datetime, date
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms, intent_classifier, intent_handlers
+from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms, intent_classifier, intent_handlers, reminder_scheduler
 
 app = FastAPI()
 
