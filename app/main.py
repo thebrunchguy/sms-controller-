@@ -5,7 +5,7 @@ from datetime import datetime, date
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms, intent_classifier, intent_handlers
+from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms, intent_classifier, intent_handlers, reminder_scheduler
 
 app = FastAPI()
 
@@ -777,6 +777,20 @@ async def debug_airtable():
         
     except Exception as e:
         return {"error": str(e), "traceback": str(e.__traceback__)}
+
+@app.post("/jobs/check-reminders")
+def check_reminders():
+    """Check for due reminders and send notifications"""
+    try:
+        results = reminder_scheduler.scheduler.process_due_reminders()
+        return {
+            "ok": True,
+            "message": f"Processed {results['total']} reminders. Sent: {results['sent']}, Failed: {results['failed']}",
+            "results": results
+        }
+    except Exception as e:
+        print(f"Error in check_reminders: {e}")
+        return {"ok": False, "error": str(e)}
 
 @app.get("/twilio/logs")
 def get_twilio_logs(limit: int = 20):
