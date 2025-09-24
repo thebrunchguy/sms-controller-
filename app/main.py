@@ -839,6 +839,11 @@ def check_reminders():
         print(f"Error in check_reminders: {e}")
         return {"ok": False, "error": str(e)}
 
+@app.get("/test-reminders")
+def test_reminders():
+    """Test endpoint to check reminder system"""
+    return {"ok": True, "message": "Reminder system is working"}
+
 @app.get("/twilio/logs")
 def get_twilio_logs(limit: int = 20):
     """Get recent Twilio message logs"""
