@@ -792,7 +792,7 @@ def check_reminders():
         endpoint = f"{os.getenv('AIRTABLE_REMINDERS_TABLE')}"
         base_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_REMINDERS_BASE_ID')}"
         
-        filter_formula = f"AND({{Due date}} <= '{buffer_time.strftime('%Y-%m-%dT%H:%M:%S')}', {{Status}} != 'Sent', {{Status}} != 'Completed')"
+        filter_formula = f"AND({{Due date}} <= '{buffer_time.isoformat()}', {{Status}} != 'Sent', {{Status}} != 'Completed')"
         
         response = airtable._make_request("GET", endpoint, params={"filterByFormula": filter_formula}, base_url=base_url)
         reminders = response.get("records", [])

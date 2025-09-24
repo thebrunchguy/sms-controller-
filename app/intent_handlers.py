@@ -152,7 +152,7 @@ class IntentHandlers:
             # Fallback to old method
             due_date = _parse_timeline_to_date(timeline)
         
-        due_date_str = due_date.strftime("%Y-%m-%d %H:%M:%S") if due_date else None
+        due_date_str = due_date.isoformat() if due_date else None
         
         # Create reminder using the new function that links to person
         success = airtable.create_reminder_for_person(
