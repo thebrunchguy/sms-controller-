@@ -782,12 +782,59 @@ async def debug_airtable():
 def check_reminders():
     """Check for due reminders and send notifications"""
     try:
-        results = reminder_scheduler.scheduler.process_due_reminders()
+        # Simple reminder check - get reminders due in the next 5 minutes
+        from datetime import datetime, timedelta
+        
+        now = datetime.now()
+        buffer_time = now + timedelta(minutes=5)
+        
+        # Get reminders from Airtable
+        endpoint = f"{os.getenv('AIRTABLE_REMINDERS_TABLE')}"
+        base_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_REMINDERS_BASE_ID')}"
+        
+        filter_formula = f"AND({{Due date}} <= '{buffer_time.strftime('%Y-%m-%dT%H:%M:%S')}', {{Status}} != 'Sent', {{Status}} != 'Completed')"
+        
+        response = airtable._make_request("GET", endpoint, params={"filterByFormula": filter_formula}, base_url=base_url)
+        reminders = response.get("records", [])
+        
+        sent_count = 0
+        for reminder in reminders:
+            try:
+                fields = reminder.get("fields", {})
+                reminder_text = fields.get("Reminder", "")
+                
+                # Send notification
+                notification_message = f"🔔 Reminder: {reminder_text}"
+                
+                twilio_sid = twilio_utils.send_sms(
+                    to=os.getenv("TWILIO_PHONE_NUMBER", "+16469177351"),
+                    body=notification_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                if twilio_sid:
+                    # Mark as sent
+                    reminder_id = reminder.get("id")
+                    update_data = {
+                        "fields": {
+                            "Status": "Sent",
+                            "Sent At": datetime.now().isoformat()
+                        }
+                    }
+                    airtable._make_request("PATCH", f"{endpoint}/{reminder_id}", update_data, base_url=base_url)
+                    sent_count += 1
+                    print(f"✅ Sent reminder: {reminder_text}")
+                    
+            except Exception as e:
+                print(f"Error processing reminder: {e}")
+        
         return {
             "ok": True,
-            "message": f"Processed {results['total']} reminders. Sent: {results['sent']}, Failed: {results['failed']}",
-            "results": results
+            "message": f"Processed {len(reminders)} reminders. Sent: {sent_count}",
+            "total": len(reminders),
+            "sent": sent_count
         }
+        
     except Exception as e:
         print(f"Error in check_reminders: {e}")
         return {"ok": False, "error": str(e)}
