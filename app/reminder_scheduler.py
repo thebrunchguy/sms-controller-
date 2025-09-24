@@ -2,7 +2,8 @@ import os
 import httpx
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
-from . import airtable, twilio_utils
+import airtable
+import twilio_utils
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -78,13 +79,13 @@ class ReminderScheduler:
                 except:
                     pass
             
-            # Send SMS to your admin number
-            admin_phone = os.getenv("ADMIN_PHONE_NUMBER", "9784910236")
-            if not admin_phone.startswith("+1"):
-                admin_phone = f"+1{admin_phone}"
+            # Send SMS to the person who created the reminder
+            # For now, we'll use a default number since we don't track who created the reminder
+            # In a real system, you'd store the creator's phone number with the reminder
+            reminder_phone = os.getenv("TWILIO_PHONE_NUMBER", "+16469177351")  # Use the main number for now
             
             twilio_sid = twilio_utils.send_sms(
-                to=admin_phone,
+                to=reminder_phone,
                 body=notification_message,
                 status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
             )
