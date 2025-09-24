@@ -340,7 +340,8 @@ def create_reminder_for_person(person_name: str, reminder_text: str, due_date: s
         # Create the reminder with link to person
         reminder_data = {
             "Reminder": reminder_text,
-            "Reminders Main View": [person_record["id"]]  # Link to person record
+            "Reminders Main View": [person_record["id"]],  # Link to person record
+            "Status": "Pending"  # Add status field for the scheduler
         }
         
         if due_date:
