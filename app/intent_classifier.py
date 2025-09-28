@@ -23,6 +23,7 @@ INTENT_CLASSIFICATION_SCHEMA = {
                 "create_reminder",       # Create reminders/tasks
                 "create_note",           # Add notes or comments
                 "schedule_followup",     # Schedule future check-ins
+                "new_friend",            # Create new friend/person
                 "no_change",             # No updates needed
                 "confirm_changes",       # Confirm previously proposed changes
                 "opt_out",               # Unsubscribe
@@ -83,6 +84,7 @@ Available intents and their target tables:
 - create_reminder → Reminders table: Creating a reminder/task for future action
 - create_note → Core People table: Adding notes (stored in How We Met field)
 - schedule_followup → SMS Check-ins - From Core table: Scheduling future check-ins or meetings
+- new_friend → Core People table: Creating a new friend/person record
 - no_change → None: Confirming no updates needed
 - confirm_changes → None: Confirming previously proposed changes
 - opt_out → Core People table: Unsubscribing from messages
@@ -96,6 +98,7 @@ Extract relevant data based on the intent:
 - For create_reminder: extract reminder_action, reminder_timeline, and reminder_priority
 - For create_note: extract note_content
 - For schedule_followup: extract followup_timeline and followup_reason
+- For new_friend: extract friend_name from messages like "new friend John Smith", "met Sarah Johnson", "introduce Mike Wilson"
 
 Return a JSON object with the intent, confidence (0-1), target_table, and extracted_data."""
 
@@ -151,7 +154,15 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
         }
     
     # Simple keyword-based classification for actionable intents
-    if any(word in message_lower for word in ["birthday", "born", "birth"]):
+    if any(word in message_lower for word in ["new friend", "met", "introduce"]):
+        friend_name = _extract_friend_name(message)
+        return {
+            "intent": "new_friend",
+            "confidence": 0.8,
+            "target_table": "Core People",
+            "extracted_data": {"friend_name": friend_name}
+        }
+    elif any(word in message_lower for word in ["birthday", "born", "birth"]):
         return {
             "intent": "update_person_info",
             "confidence": 0.7,
@@ -238,6 +249,29 @@ def _extract_birthday(message: str) -> str:
     match = re.search(birthday_pattern, message)
     if match:
         return match.group(1)
+    return ""
+
+def _extract_friend_name(message: str) -> str:
+    """Extract friend name from 'new friend' messages"""
+    import re
+    
+    # Pattern for "new friend [Name]" or "met [Name]" or "introduce [Name]"
+    patterns = [
+        r'new\s+friend\s+(.+)',
+        r'met\s+(.+)',
+        r'introduce\s+(.+)'
+    ]
+    
+    message_lower = message.lower()
+    for pattern in patterns:
+        match = re.search(pattern, message_lower)
+        if match:
+            name = match.group(1).strip()
+            # Clean up the name (remove extra words, capitalize properly)
+            name_parts = name.split()
+            if name_parts:
+                return ' '.join([part.capitalize() for part in name_parts])
+    
     return ""
 
 def _extract_tags(message: str) -> list:

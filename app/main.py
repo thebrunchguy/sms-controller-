@@ -149,75 +149,6 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             message=f"Received SMS: {Body}"
         )
         
-        # Check if this is an admin number
-        if False:  # Disabled admin system - all messages go through intent classification
-            print(f"🔐 Admin SMS from {from_phone}")
-            
-            # Handle admin commands
-            if Body.strip().lower() in ["help", "controls"]:
-                # Send admin help
-                help_message = admin_sms.get_admin_help()
-                twilio_utils.send_sms(
-                    to=from_phone,
-                    body=help_message,
-                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-                )
-                
-                # Log outbound message
-                airtable.log_message(
-                    checkin_id=checkin_id,
-                    direction="Outbound",
-                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                    body=help_message,
-                    twilio_sid=""
-                )
-                
-                return {"ok": True, "message": "Admin help sent"}
-            
-            # Try to parse admin command
-            admin_command = admin_sms.parse_admin_command(Body)
-            if admin_command:
-                print(f"🔐 Executing admin command: {admin_command}")
-                
-                # Execute the command
-                success, result_message = admin_sms.execute_admin_command(admin_command)
-                
-                # Send result back to admin
-                twilio_utils.send_sms(
-                    to=from_phone,
-                    body=result_message,
-                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-                )
-                
-                # Log outbound message
-                airtable.log_message(
-                    checkin_id=checkin_id,
-                    direction="Outbound",
-                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                    body=result_message,
-                    twilio_sid=""
-                )
-                
-                return {"ok": True, "message": f"Admin command executed: {result_message}"}
-            else:
-                # Invalid admin command
-                error_message = "❌ Invalid admin command. Send 'help' for available commands."
-                twilio_utils.send_sms(
-                    to=from_phone,
-                    body=error_message,
-                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-                )
-                
-                # Log outbound message
-                airtable.log_message(
-                    checkin_id=checkin_id,
-                    direction="Outbound",
-                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                    body=error_message,
-                    twilio_sid=""
-                )
-                
-                return {"ok": True, "message": "Invalid admin command, error sent"}
         
         # Process the message body
         body_lower = Body.strip().lower()
@@ -354,6 +285,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                     )
                 elif intent == "schedule_followup":
                     success, response_message = intent_handlers.IntentHandlers.handle_schedule_followup(
+                        extracted_data, person_id, person_fields
+                    )
+                elif intent == "new_friend":
+                    success, response_message = intent_handlers.IntentHandlers.handle_new_friend(
                         extracted_data, person_id, person_fields
                     )
                 elif intent == "unclear":

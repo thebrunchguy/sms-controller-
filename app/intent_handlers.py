@@ -230,6 +230,35 @@ class IntentHandlers:
             return True, f"✅ Follow-up scheduled: {timeline}"
         else:
             return False, "❌ I couldn't schedule the follow-up in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+    
+    @staticmethod
+    def handle_new_friend(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle creating new friends in Core People table"""
+        
+        friend_name = extracted_data.get("friend_name", "")
+        
+        if not friend_name:
+            return False, "❌ I couldn't determine the name of the friend you'd like to add. Please specify a name, like 'new friend John Smith'"
+        
+        # Check if person already exists
+        from .admin_sms import find_person_by_name
+        existing_person = find_person_by_name(friend_name)
+        if existing_person:
+            return False, f"❌ Person '{friend_name}' already exists in Airtable"
+        
+        # Create new person with just the name
+        person_id = airtable.create_person({"Name": friend_name})
+        if person_id:
+            # Add small delay to ensure Airtable has processed the write
+            import time
+            time.sleep(0.5)
+            return True, f"✅ Added new friend '{friend_name}' to Airtable"
+        else:
+            return False, f"❌ Failed to create new friend '{friend_name}'"
 
 def _extract_person_name_from_action(action: str, person_fields: Dict[str, Any]) -> str:
     """Extract person name from reminder action or fall back to current person"""
