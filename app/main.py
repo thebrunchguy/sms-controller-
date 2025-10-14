@@ -194,7 +194,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         checkin_id = airtable.upsert_checkin(
             person_id=person_id,
             month=current_month,
-            status="In progress"
+            status="Sent"
         )
         
         print(f"🔧 Check-in ID: {checkin_id}")
