@@ -113,8 +113,10 @@ def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[D
         if prefer_checkins:
             checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
             if checkins_people_table:
+                print(f"🔍 Looking in check-ins people table: {checkins_people_table}")
                 response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
                 records = response.get("records", [])
+                print(f"🔍 Found {len(records)} people in check-ins base")
                 
                 for record in records:
                     record_phone = record.get("fields", {}).get("Phone", "")
@@ -122,6 +124,7 @@ def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[D
                         # Normalize the phone number from the record
                         normalized_record_phone = _normalize_phone(record_phone)
                         if normalized_phone == normalized_record_phone:
+                            print(f"🔍 Found person in check-ins base: {record.get('id')}")
                             return record
         
         # Try the main people table
