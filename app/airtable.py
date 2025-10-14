@@ -137,6 +137,24 @@ def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[D
                 # Normalize the phone number from the record
                 normalized_record_phone = _normalize_phone(record_phone)
                 if normalized_phone == normalized_record_phone:
+                    # Found in main base - now get the corresponding record from check-ins mirror
+                    person_name = record.get("fields", {}).get("Name", "")
+                    if person_name:
+                        print(f"🔍 Found in main base: {person_name}, looking for mirror in check-ins base")
+                        # Look up the same person in the check-ins people table
+                        checkins_people_table = os.getenv("AIRTABLE_CHECKINS_PEOPLE_TABLE")
+                        if checkins_people_table:
+                            checkins_response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
+                            checkins_records = checkins_response.get("records", [])
+                            
+                            for checkins_record in checkins_records:
+                                checkins_name = checkins_record.get("fields", {}).get("Name", "")
+                                if checkins_name and checkins_name.lower() == person_name.lower():
+                                    print(f"🔍 Found mirror in check-ins base: {checkins_record.get('id')}")
+                                    return checkins_record
+                    
+                    # If no mirror found, return the main base record
+                    print(f"🔍 No mirror found, using main base record: {record.get('id')}")
                     return record
         
         # If not found in main table and not already tried, try the check-ins people table
