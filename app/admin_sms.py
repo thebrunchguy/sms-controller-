@@ -9,7 +9,7 @@ integration for complex command parsing and fallback regex-based parsing.
 import re
 import asyncio
 from typing import Dict, Any, Optional, Tuple
-from . import airtable
+import airtable
 
 # =============================================================================
 # MCP PARSER INTEGRATION

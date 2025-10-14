@@ -6,8 +6,8 @@ Each handler processes a specific type of user request and updates the appropria
 """
 
 from typing import Dict, Any, Tuple, Optional
-from . import airtable
-from . import twilio_utils
+import airtable
+import twilio_utils
 from datetime import datetime, timedelta
 import re
 import json
@@ -281,7 +281,7 @@ class IntentHandlers:
             return False, "❌ I couldn't determine the name of the friend you'd like to add. Please specify a name, like 'new friend John Smith'"
         
         # Check if person already exists
-        from .admin_sms import find_person_by_name
+        from admin_sms import find_person_by_name
         existing_person = find_person_by_name(friend_name)
         if existing_person:
             return False, f"❌ Person '{friend_name}' already exists in Airtable"
