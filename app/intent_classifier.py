@@ -1,3 +1,10 @@
+"""
+Intent Classifier Module
+
+This module classifies SMS messages into different intents using OpenAI's API
+and provides fallback regex-based classification when the API is unavailable.
+"""
+
 import os
 import json
 from typing import Dict, Any, Optional
@@ -7,11 +14,18 @@ from dotenv import load_dotenv
 # Load environment variables from config file
 load_dotenv('config/config.env')
 
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
 # OpenAI configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-# Intent classification schema
+# =============================================================================
+# INTENT CLASSIFICATION SCHEMA
+# =============================================================================
+
 INTENT_CLASSIFICATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -53,6 +67,10 @@ INTENT_CLASSIFICATION_SCHEMA = {
     },
     "required": ["intent", "confidence", "target_table", "extracted_data"]
 }
+
+# =============================================================================
+# MAIN CLASSIFICATION FUNCTIONS
+# =============================================================================
 
 def classify_intent(message: str, person_context: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -122,6 +140,10 @@ Return a JSON object with the intent, confidence (0-1), target_table, and extrac
     except Exception as e:
         print(f"Error in intent classification: {e}")
         return _fallback_classification(message)
+
+# =============================================================================
+# FALLBACK CLASSIFICATION
+# =============================================================================
 
 def _fallback_classification(message: str) -> Dict[str, Any]:
     """
@@ -203,6 +225,10 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
                 "error_message": "I couldn't understand what you'd like me to do. Please try rephrasing your message with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
             }
         }
+
+# =============================================================================
+# EXTRACTION HELPER FUNCTIONS
+# =============================================================================
 
 def _extract_timeline(message: str) -> str:
     """Extract timeline from message using the comprehensive timeline extractor"""

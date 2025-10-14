@@ -1,3 +1,14 @@
+"""
+Airtable Integration Module
+
+This module handles all interactions with Airtable databases including:
+- People management (Core People table)
+- Check-ins (SMS Check-ins table)
+- Messages logging
+- Reminders management
+- Notes and follow-ups
+"""
+
 import os
 import json
 import httpx
@@ -7,6 +18,10 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'config', 'config.env'))
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
 
 # Airtable configuration
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -27,9 +42,17 @@ AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
 AIRTABLE_CHECKINS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_CHECKINS_BASE_ID}"
 AIRTABLE_REMINDERS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_REMINDERS_BASE_ID}"
 
+# =============================================================================
+# EXCEPTIONS
+# =============================================================================
+
 class AirtableError(Exception):
     """Custom exception for Airtable API errors"""
     pass
+
+# =============================================================================
+# CORE API FUNCTIONS
+# =============================================================================
 
 def _get_headers():
     """Get headers for Airtable API requests"""
@@ -75,6 +98,10 @@ def _make_request(method: str, endpoint: str, data: Optional[Dict] = None, base_
             raise AirtableError(f"Airtable API error: {response.status_code} - {response.text}")
         
         return response.json()
+
+# =============================================================================
+# PEOPLE MANAGEMENT
+# =============================================================================
 
 def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[Dict]:
     """Get a person record by phone number"""
@@ -178,6 +205,10 @@ def create_person(fields: Dict[str, Any]) -> Optional[str]:
     except Exception as e:
         print(f"Error creating person: {e}")
         return None
+
+# =============================================================================
+# CHECK-IN MANAGEMENT
+# =============================================================================
 
 def upsert_checkin(person_id: str, month: str, status: str = "Sent", 
                    pending_changes: Optional[str] = None, transcript: str = "") -> Optional[str]:
@@ -318,6 +349,10 @@ def get_all_people() -> List[Dict]:
         print(f"Error getting all people: {e}")
         return []
 
+# =============================================================================
+# REMINDER MANAGEMENT
+# =============================================================================
+
 def create_reminder(reminder_data: Dict[str, Any]) -> bool:
     """Create a new reminder record in the Reminders table"""
     try:
@@ -379,6 +414,10 @@ def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
         print(f"Error finding person in reminders base: {e}")
         return None
 
+# =============================================================================
+# NOTES MANAGEMENT
+# =============================================================================
+
 def create_note(note_data: Dict[str, Any]) -> bool:
     """Create a new note record in the Notes table"""
     try:
@@ -388,6 +427,10 @@ def create_note(note_data: Dict[str, Any]) -> bool:
     except Exception as e:
         print(f"Error creating note: {e}")
         return False
+
+# =============================================================================
+# FOLLOW-UP MANAGEMENT
+# =============================================================================
 
 def create_followup(followup_data: Dict[str, Any]) -> bool:
     """Create a new follow-up record in the Followups table"""

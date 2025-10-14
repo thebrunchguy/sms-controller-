@@ -1,3 +1,10 @@
+"""
+Intent Handlers Module
+
+This module contains handlers for processing different types of SMS intents.
+Each handler processes a specific type of user request and updates the appropriate Airtable.
+"""
+
 from typing import Dict, Any, Tuple, Optional
 from . import airtable
 from . import twilio_utils
@@ -5,7 +12,16 @@ from datetime import datetime, timedelta
 import re
 import json
 
+# =============================================================================
+# INTENT HANDLERS CLASS
+# =============================================================================
+
 class IntentHandlers:
+    """Handles processing of different SMS intents and updates appropriate Airtable tables"""
+    
+    # =============================================================================
+    # PERSON INFO UPDATES
+    # =============================================================================
     
     @staticmethod
     def handle_update_person_info(
@@ -81,6 +97,10 @@ class IntentHandlers:
         
         return False, "❌ I couldn't determine what information you'd like me to update. Please be specific, like 'update my birthday to 03/14/1999' or 'update my company to Tech Corp'"
     
+    # =============================================================================
+    # TAG MANAGEMENT
+    # =============================================================================
+    
     @staticmethod
     def handle_manage_tags(
         extracted_data: Dict[str, Any], 
@@ -120,6 +140,10 @@ class IntentHandlers:
             return True, f"✅ Tags updated - {', '.join(messages)}"
         else:
             return False, "❌ I couldn't update your tags in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+    
+    # =============================================================================
+    # REMINDER MANAGEMENT
+    # =============================================================================
     
     @staticmethod
     def handle_create_reminder(
@@ -167,6 +191,10 @@ class IntentHandlers:
         else:
             return False, "❌ I couldn't create the reminder in your system. This might be due to a connection issue or missing information. Please try again or contact support if the problem persists."
     
+    # =============================================================================
+    # NOTE MANAGEMENT
+    # =============================================================================
+    
     @staticmethod
     def handle_create_note(
         extracted_data: Dict[str, Any], 
@@ -195,6 +223,10 @@ class IntentHandlers:
             return True, f"✅ Note added: {note_content[:50]}{'...' if len(note_content) > 50 else ''}"
         else:
             return False, "❌ I couldn't save the note to your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+    
+    # =============================================================================
+    # FOLLOW-UP MANAGEMENT
+    # =============================================================================
     
     @staticmethod
     def handle_schedule_followup(
@@ -231,6 +263,10 @@ class IntentHandlers:
         else:
             return False, "❌ I couldn't schedule the follow-up in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
+    # =============================================================================
+    # FRIEND MANAGEMENT
+    # =============================================================================
+    
     @staticmethod
     def handle_new_friend(
         extracted_data: Dict[str, Any], 
@@ -259,6 +295,10 @@ class IntentHandlers:
             return True, f"✅ Added new friend '{friend_name}' to Airtable"
         else:
             return False, f"❌ Failed to create new friend '{friend_name}'"
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
 def _extract_person_name_from_action(action: str, person_fields: Dict[str, Any]) -> str:
     """Extract person name from reminder action or fall back to current person"""
