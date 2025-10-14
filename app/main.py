@@ -140,6 +140,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=True)
         
         print(f"🔍 Phone lookup: {from_phone} -> {person_record is not None}")
+        if person_record:
+            print(f"🔍 Person found: {person_record.get('fields', {}).get('Name', 'Unknown')}")
+        else:
+            print(f"🔍 No person found for phone: {from_phone}")
         
         if not person_record:
             # Unknown phone number - could log this for review
