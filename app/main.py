@@ -137,7 +137,9 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         body_lower = Body.strip().lower()
         
         # Find person by phone number (check main table first, then check-ins)
+        print(f"🔍 Looking up person by phone: {from_phone}")
         person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=False)
+        print(f"🔍 Person lookup result: {person_record is not None}")
         
         print(f"🔍 Phone lookup: {from_phone} -> {person_record is not None}")
         if person_record:
@@ -148,6 +150,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         if not person_record:
             # Unknown phone number - could log this for review
             print(f"❌ Unknown phone number: {from_phone}")
+            print(f"❌ Phone lookup failed for: {from_phone}")
             # For now, let's allow the controls command to work even without a person record
             if body_lower in ["help", "controls"]:
                 # Send help message even without person record
@@ -212,7 +215,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             except Exception as test_e:
                 print(f"❌ Error testing person lookup: {test_e}")
             
-            raise HTTPException(status_code=500, detail=f"Failed to create check-in record for person_id: {person_id}")
+            # Return a more specific error message
+            error_detail = f"Failed to create check-in record for person_id: {person_id}. Check application logs for details."
+            print(f"❌ Returning error: {error_detail}")
+            raise HTTPException(status_code=500, detail=error_detail)
         
         # Log inbound message
         airtable.log_message(
