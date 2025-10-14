@@ -136,8 +136,8 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         # Process the message body early for special commands
         body_lower = Body.strip().lower()
         
-        # Find person by phone number (prefer check-ins table for SMS processing)
-        person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=True)
+        # Find person by phone number (check main table first, then check-ins)
+        person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=False)
         
         print(f"🔍 Phone lookup: {from_phone} -> {person_record is not None}")
         if person_record:
