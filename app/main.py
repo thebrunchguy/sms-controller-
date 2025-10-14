@@ -123,10 +123,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                 # Send help message even without person record
                 help_message = """📋 Available Commands:
 • new friend [Name] - Add a new friend
-• update my birthday [Date] - Update your birthday
-• update my company [Company] - Update your company
-• update my role [Role] - Update your role
-• tag me with [Tag] - Add a tag
+• update [Name] birthday [Date] - Update someone's birthday
+• update [Name] company [Company] - Update someone's company
+• update [Name] role [Role] - Update someone's role
+• tag [Name] with [Tag] - Add a tag to someone
 • remind me to [Action] [Timeline] - Create a reminder
 • note: [Note] - Add a note
 • follow up [Timeline] - Schedule follow-up
@@ -148,10 +148,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             # Send help message with available commands
             help_message = """📋 Available Commands:
 • new friend [Name] - Add a new friend
-• update my birthday [Date] - Update your birthday
-• update my company [Company] - Update your company
-• update my role [Role] - Update your role
-• tag me with [Tag] - Add a tag
+• update [Name] birthday [Date] - Update someone's birthday
+• update [Name] company [Company] - Update someone's company
+• update [Name] role [Role] - Update someone's role
+• tag [Name] with [Tag] - Add a tag to someone
 • remind me to [Action] [Timeline] - Create a reminder
 • note: [Note] - Add a note
 • follow up [Timeline] - Schedule follow-up
