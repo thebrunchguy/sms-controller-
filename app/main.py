@@ -110,8 +110,11 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         # Find person by phone number (prefer check-ins table for SMS processing)
         person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=True)
         
+        print(f"🔍 Phone lookup: {from_phone} -> {person_record is not None}")
+        
         if not person_record:
             # Unknown phone number - could log this for review
+            print(f"❌ Unknown phone number: {from_phone}")
             return {"ok": False, "message": "Unknown phone number"}
         
         person_id = person_record["id"]
@@ -230,6 +233,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             return {"ok": True, "message": "Changes confirmed and applied"}
             
         elif body_lower in ["help", "controls"]:
+            print(f"🎛️ Controls command detected: {body_lower}")
             # Send help message with available commands
             help_message = """📋 Available Commands:
 • new friend [Name] - Add a new friend
