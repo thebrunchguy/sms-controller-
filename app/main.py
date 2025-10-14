@@ -107,6 +107,9 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         # Clean phone number (remove +1 prefix if present)
         from_phone = From.replace("+1", "") if From.startswith("+1") else From
         
+        # Process the message body early for special commands
+        body_lower = Body.strip().lower()
+        
         # Find person by phone number (prefer check-ins table for SMS processing)
         person_record = airtable.get_person_by_phone(from_phone, prefer_checkins=True)
         
@@ -115,6 +118,29 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         if not person_record:
             # Unknown phone number - could log this for review
             print(f"❌ Unknown phone number: {from_phone}")
+            # For now, let's allow the controls command to work even without a person record
+            if body_lower in ["help", "controls"]:
+                # Send help message even without person record
+                help_message = """📋 Available Commands:
+• new friend [Name] - Add a new friend
+• update my birthday [Date] - Update your birthday
+• update my company [Company] - Update your company
+• update my role [Role] - Update your role
+• tag me with [Tag] - Add a tag
+• remind me to [Action] [Timeline] - Create a reminder
+• note: [Note] - Add a note
+• follow up [Timeline] - Schedule follow-up
+• no change - Confirm no updates needed
+• stop - Unsubscribe from messages"""
+                
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=help_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                
+                return {"ok": True, "message": "Help message sent to unknown number"}
+            
             return {"ok": False, "message": "Unknown phone number"}
         
         person_id = person_record["id"]
@@ -152,9 +178,6 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             message=f"Received SMS: {Body}"
         )
         
-        
-        # Process the message body
-        body_lower = Body.strip().lower()
         
         if body_lower == "stop":
             # Handle opt-out
