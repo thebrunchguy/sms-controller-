@@ -1,7 +1,18 @@
+"""
+Twilio Utilities Module
+
+This module handles all Twilio SMS operations including sending messages,
+logging message status, and managing Twilio client connections.
+"""
+
 import os
 from typing import Optional
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioException
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
 
 # Twilio configuration
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -11,6 +22,10 @@ TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
 
 # Initialize Twilio client
 twilio_client = None
+
+# =============================================================================
+# CLIENT MANAGEMENT
+# =============================================================================
 
 def _get_twilio_client():
     """Get or initialize Twilio client"""
@@ -25,6 +40,10 @@ def _get_twilio_client():
         else:
             print("Twilio credentials not available")
     return twilio_client
+
+# =============================================================================
+# SMS OPERATIONS
+# =============================================================================
 
 def send_sms(to: str, body: str, status_callback_url: Optional[str] = None) -> Optional[str]:
     """
@@ -79,6 +98,10 @@ def send_sms(to: str, body: str, status_callback_url: Optional[str] = None) -> O
         print(f"Unexpected error sending SMS to {to}: {e}")
         return None
 
+# =============================================================================
+# WEBHOOK UTILITIES
+# =============================================================================
+
 def validate_webhook_signature(request_body: str, signature: str, url: str) -> bool:
     """
     Validate Twilio webhook signature for security
@@ -107,6 +130,10 @@ def validate_webhook_signature(request_body: str, signature: str, url: str) -> b
     except Exception as e:
         print(f"Error validating Twilio signature: {e}")
         return False
+
+# =============================================================================
+# PHONE NUMBER UTILITIES
+# =============================================================================
 
 def format_phone_number(phone: str) -> str:
     """

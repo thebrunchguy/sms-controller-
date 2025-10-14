@@ -1,7 +1,18 @@
+"""
+Scheduler Module
+
+This module handles scheduling logic for determining when people are due
+for check-ins based on their frequency settings and last confirmed dates.
+"""
+
 import os
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any
 from . import airtable
+
+# =============================================================================
+# SCHEDULING FUNCTIONS
+# =============================================================================
 
 def get_people_due_for_checkin() -> List[Dict[str, Any]]:
     """

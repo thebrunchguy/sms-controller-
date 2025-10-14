@@ -1,7 +1,19 @@
+"""
+Admin SMS Module
+
+This module handles admin-specific SMS commands and provides utilities
+for parsing and executing administrative functions. It includes MCP parser
+integration for complex command parsing and fallback regex-based parsing.
+"""
+
 import re
 import asyncio
 from typing import Dict, Any, Optional, Tuple
 from . import airtable
+
+# =============================================================================
+# MCP PARSER INTEGRATION
+# =============================================================================
 
 # Import MCP client for complex parsing
 try:
@@ -14,17 +26,29 @@ except ImportError:
     MCP_AVAILABLE = False
     print("MCP client not available, falling back to regex-only parsing")
 
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
 # Admin phone numbers (add more as needed)
 ADMIN_NUMBERS = {
     "+19784910236",  # David's number
     "9784910236"     # Also accept without +1
 }
 
+# =============================================================================
+# ADMIN UTILITIES
+# =============================================================================
+
 def is_admin_number(phone: str) -> bool:
     """Check if a phone number is an admin number"""
     # Normalize phone number
     normalized = phone.replace("+1", "") if phone.startswith("+1") else phone
     return normalized in ADMIN_NUMBERS or phone in ADMIN_NUMBERS
+
+# =============================================================================
+# COMMAND PARSING
+# =============================================================================
 
 def parse_admin_command(message: str) -> Optional[Dict[str, Any]]:
     """
@@ -232,6 +256,10 @@ def _convert_mcp_result(mcp_result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     
     return None
 
+# =============================================================================
+# PERSON LOOKUP
+# =============================================================================
+
 def find_person_by_name(name: str) -> Optional[Dict[str, Any]]:
     """Find a person in Airtable by name"""
     try:
@@ -249,6 +277,10 @@ def find_person_by_name(name: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         print(f"Error finding person by name: {e}")
         return None
+
+# =============================================================================
+# COMMAND EXECUTION
+# =============================================================================
 
 def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
     """
@@ -373,6 +405,10 @@ def execute_admin_command(command_data: Dict[str, Any]) -> Tuple[bool, str]:
     except Exception as e:
         print(f"Error executing admin command: {e}")
         return False, f"❌ Error executing command: {str(e)}"
+
+# =============================================================================
+# HELP SYSTEM
+# =============================================================================
 
 def get_admin_help() -> str:
     """Get help text for admin commands"""

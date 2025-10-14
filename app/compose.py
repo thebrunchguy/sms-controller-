@@ -1,4 +1,15 @@
+"""
+Message Composition Module
+
+This module handles composing SMS messages for check-ins and other communications.
+It provides utilities for formatting person data and creating outbound messages.
+"""
+
 from typing import Sequence
+
+# =============================================================================
+# MESSAGE COMPOSITION FUNCTIONS
+# =============================================================================
 
 def _fmt(value, max_len: int = 40):
     if value is None or value == "":
