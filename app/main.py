@@ -282,38 +282,6 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             
             return {"ok": True, "message": "Changes confirmed and applied"}
             
-        elif body_lower in ["help", "controls"]:
-            print(f"🎛️ Controls command detected: {body_lower}")
-            # Send help message with available commands
-            help_message = """📋 Available Commands:
-• new friend [Name] - Add a new friend
-• update my birthday [Date] - Update your birthday
-• update my company [Company] - Update your company
-• update my role [Role] - Update your role
-• tag me with [Tag] - Add a tag
-• remind me to [Action] [Timeline] - Create a reminder
-• note: [Note] - Add a note
-• follow up [Timeline] - Schedule follow-up
-• no change - Confirm no updates needed
-• stop - Unsubscribe from messages"""
-            
-            twilio_utils.send_sms(
-                to=from_phone,
-                body=help_message,
-                status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-            )
-            
-            # Log outbound message
-            airtable.log_message(
-                checkin_id=checkin_id,
-                direction="Outbound",
-                from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                body=help_message,
-                twilio_sid=""
-            )
-            
-            return {"ok": True, "message": "Help message sent"}
-            
         else:
             # Handle free-text updates via intent classification
             try:
