@@ -154,13 +154,17 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         current_month = datetime.now().strftime("%Y-%m")
         
         # Create or update check-in record
+        print(f"🔧 Creating check-in for person_id: {person_id}, month: {current_month}")
         checkin_id = airtable.upsert_checkin(
             person_id=person_id,
             month=current_month,
             status="In progress"
         )
         
+        print(f"🔧 Check-in ID: {checkin_id}")
+        
         if not checkin_id:
+            print(f"❌ Failed to create check-in record for person_id: {person_id}")
             raise HTTPException(status_code=500, detail="Failed to create check-in record")
         
         # Log inbound message
