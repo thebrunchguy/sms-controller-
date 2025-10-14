@@ -201,7 +201,18 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         
         if not checkin_id:
             print(f"❌ Failed to create check-in record for person_id: {person_id}")
-            raise HTTPException(status_code=500, detail="Failed to create check-in record")
+            # Try to get more specific error information
+            try:
+                # Test if we can at least get the person record
+                test_person = airtable.get_person_by_phone(from_phone, prefer_checkins=False)
+                if test_person:
+                    print(f"❌ Person found but check-in creation failed. Person ID: {test_person.get('id')}")
+                else:
+                    print(f"❌ Person not found for phone: {from_phone}")
+            except Exception as test_e:
+                print(f"❌ Error testing person lookup: {test_e}")
+            
+            raise HTTPException(status_code=500, detail=f"Failed to create check-in record for person_id: {person_id}")
         
         # Log inbound message
         airtable.log_message(
