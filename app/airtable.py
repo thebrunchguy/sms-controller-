@@ -214,17 +214,25 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
                    pending_changes: Optional[str] = None, transcript: str = "") -> Optional[str]:
     """Create or update a check-in record"""
     try:
+        print(f"🔧 upsert_checkin: person_id={person_id}, month={month}, status={status}")
+        print(f"🔧 Using checkins base: {AIRTABLE_CHECKINS_BASE_URL}")
+        print(f"🔧 Using checkins table: {AIRTABLE_CHECKINS_TABLE}")
+        
         # First try to find existing check-in
         filter_formula = f"{{Person}} = '{person_id}'"
         endpoint = f"{AIRTABLE_CHECKINS_TABLE}?filterByFormula={filter_formula}"
+        print(f"🔧 Looking for existing checkin with filter: {filter_formula}")
         
         response = _make_request("GET", endpoint, base_url=AIRTABLE_CHECKINS_BASE_URL)
         existing_records = response.get("records", [])
+        print(f"🔧 Found {len(existing_records)} existing checkins")
         
         checkin_data = {
             "Person": [person_id],  # Reference to person in same base
-            "Status": "Sent"  # Use the available status option
+            "Status": status  # Use the provided status
         }
+        
+        print(f"🔧 Checkin data: {checkin_data}")
         
         # Note: Pending Changes field may not exist in all tables
         # if pending_changes:
@@ -233,6 +241,7 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
         if existing_records:
             # Update existing check-in
             checkin_id = existing_records[0]["id"]
+            print(f"🔧 Updating existing checkin: {checkin_id}")
             data = {
                 "records": [{
                     "id": checkin_id,
@@ -243,16 +252,21 @@ def upsert_checkin(person_id: str, month: str, status: str = "Sent",
             return checkin_id
         else:
             # Create new check-in
+            print(f"🔧 Creating new checkin")
             data = {
                 "records": [{
                     "fields": checkin_data
                 }]
             }
             response = _make_request("POST", AIRTABLE_CHECKINS_TABLE, data, base_url=AIRTABLE_CHECKINS_BASE_URL)
-            return response["records"][0]["id"]
+            checkin_id = response["records"][0]["id"]
+            print(f"🔧 Created checkin with ID: {checkin_id}")
+            return checkin_id
             
     except Exception as e:
-        print(f"Error upserting checkin for person {person_id}, month {month}: {e}")
+        print(f"❌ Error upserting checkin for person {person_id}, month {month}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def log_message(checkin_id: str, direction: str, from_number: str, body: str, 

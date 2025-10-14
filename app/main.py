@@ -159,7 +159,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             
             return {"ok": False, "message": "Unknown phone number"}
         
-        # Handle controls command early to avoid check-in creation issues
+        # Handle special commands early to avoid check-in creation issues
         if body_lower in ["help", "controls"]:
             # Send help message with available commands
             help_message = get_help_message()
@@ -171,6 +171,55 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             )
             
             return {"ok": True, "message": "Help message sent"}
+        
+        # Handle "new friend" commands early to avoid check-in creation issues
+        elif body_lower.startswith("new friend"):
+            # Process through intent classification without creating check-in
+            try:
+                # Classify the intent
+                classification = intent_classifier.classify_intent(Body, person_fields)
+                
+                intent = classification.get("intent")
+                confidence = classification.get("confidence", 0)
+                target_table = classification.get("target_table", "None")
+                extracted_data = classification.get("extracted_data", {})
+                
+                print(f"🎯 Intent: {intent}, Confidence: {confidence}, Target: {target_table}")
+                
+                if intent == "new_friend":
+                    # Handle new friend creation
+                    success, response_message = intent_handlers.IntentHandlers.handle_new_friend(
+                        extracted_data, person_id, person_fields
+                    )
+                    
+                    # Send response
+                    twilio_utils.send_sms(
+                        to=from_phone,
+                        body=response_message,
+                        status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                    )
+                    
+                    return {"ok": True, "message": f"New friend handled: {response_message}"}
+                else:
+                    # Fallback to help message
+                    help_message = get_help_message()
+                    twilio_utils.send_sms(
+                        to=from_phone,
+                        body=help_message,
+                        status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                    )
+                    return {"ok": True, "message": "Help message sent"}
+                    
+            except Exception as e:
+                print(f"Error processing new friend command: {e}")
+                # Fallback to help message
+                help_message = get_help_message()
+                twilio_utils.send_sms(
+                    to=from_phone,
+                    body=help_message,
+                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+                )
+                return {"ok": True, "message": "Help message sent"}
         
         person_id = person_record["id"]
         person_fields = person_record["fields"]
