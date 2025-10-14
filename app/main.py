@@ -143,6 +143,29 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             
             return {"ok": False, "message": "Unknown phone number"}
         
+        # Handle controls command early to avoid check-in creation issues
+        if body_lower in ["help", "controls"]:
+            # Send help message with available commands
+            help_message = """📋 Available Commands:
+• new friend [Name] - Add a new friend
+• update my birthday [Date] - Update your birthday
+• update my company [Company] - Update your company
+• update my role [Role] - Update your role
+• tag me with [Tag] - Add a tag
+• remind me to [Action] [Timeline] - Create a reminder
+• note: [Note] - Add a note
+• follow up [Timeline] - Schedule follow-up
+• no change - Confirm no updates needed
+• stop - Unsubscribe from messages"""
+            
+            twilio_utils.send_sms(
+                to=from_phone,
+                body=help_message,
+                status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
+            )
+            
+            return {"ok": True, "message": "Help message sent"}
+        
         person_id = person_record["id"]
         person_fields = person_record["fields"]
         
