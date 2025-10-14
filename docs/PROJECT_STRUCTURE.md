@@ -9,20 +9,23 @@ This document describes the organized structure of the People Data Updates proje
 - `requirements.txt` - Python dependencies
 - `Dockerfile` - Container configuration
 - `render.yaml` - Deployment configuration
-- `.env` - Environment variables (not tracked)
+- `run.py` - Application entry point for Render deployment
+- `config/` - Configuration files
 
 ### 📱 `app/` - Main Application
 Core FastAPI application and business logic:
-- `main.py` - FastAPI application entry point
-- `admin_sms.py` - Admin SMS command processing (hybrid regex + MCP)
-- `airtable.py` - Airtable API integration
-- `twilio_utils.py` - Twilio SMS utilities
-- `intent_classifier.py` - LLM-based intent classification
-- `intent_handlers.py` - Intent handling logic
-- `parser.py` - Message parsing utilities
-- `compose.py` - Message composition
-- `llm.py` - LLM integration
-- `scheduler.py` - Task scheduling
+- `main.py` - FastAPI application entry point with organized sections
+- `airtable.py` - Airtable API integration (People, Check-ins, Reminders, Notes, Follow-ups)
+- `twilio_utils.py` - Twilio SMS utilities and phone number formatting
+- `intent_classifier.py` - OpenAI-based intent classification with fallback parsing
+- `intent_handlers.py` - Intent handling logic for different message types
+- `admin_sms.py` - Admin SMS command processing with MCP parser integration
+- `compose.py` - Message composition utilities
+- `scheduler.py` - Task scheduling for check-ins
+- `timeline_extractor.py` - Natural language timeline parsing
+- `llm.py` - Legacy LLM integration (kept for compatibility)
+- `parser.py` - Legacy message parsing utilities (kept for compatibility)
+- `reminder_scheduler.py` - Reminder notification system (kept for compatibility)
 
 ### 🤖 `mcp_parser/` - MCP (Multi-Capability Protocol) Package
 Natural language command parsing using MCP framework:
@@ -32,8 +35,8 @@ Natural language command parsing using MCP framework:
 - `mcp_sync_client.py` - Synchronous MCP client (works in async contexts)
 - `mcp_tuple_converter.py` - Fix for MCP framework Pydantic validation issues
 
-### 🔄 `keep_alive/` - Keep-Alive Scripts
-Scripts to keep the application running:
+### 🔄 `keep_alive/` - Keep-Alive Scripts (Optional)
+Scripts to keep the application running (not currently used in production):
 - `keep_alive.py` - Basic keep-alive script
 - `robust_keep_alive.py` - Enhanced keep-alive with error handling
 - `simple_keep_alive.py` - Minimal keep-alive script
@@ -68,6 +71,12 @@ Project documentation:
 - `PROJECT_STRUCTURE.md` - This file
 
 ## 🔧 Key Features
+
+### Current Project Organization (Updated)
+- **Clean Code Structure**: All modules organized with section headers and docstrings
+- **Comprehensive Documentation**: Each module has clear purpose and function descriptions
+- **Preserved Functionality**: All existing features maintained while improving readability
+- **Consistent Patterns**: All modules follow the same organizational structure
 
 ### Hybrid Command Parsing
 - **Regex First**: Fast parsing for structured commands

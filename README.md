@@ -1,14 +1,17 @@
-# Technical Spec: Monthly SMS Airtable Check-ins (LLM + MCP Option)
+# People Data Updates - SMS Check-in System
 
-## Scope
-```
-- Monthly SMS check-ins to keep an Airtable “People” table up to date.
-- Users can reply “no change” or free-text updates.
-- Bot proposes a change set; on “YES” it writes to Airtable.
-- Every message logged for review.
-- Outbound SMS should include a bulleted snapshot of current Airtable data.
-- Optional MCP server so LLM can call Airtable/Twilio tools directly.
-```
+## Overview
+A comprehensive SMS-based system for managing people data through monthly check-ins, reminders, and natural language updates.
+
+## Current Features
+- ✅ **Monthly SMS Check-ins** - Automated check-ins to keep Airtable "People" table up to date
+- ✅ **Natural Language Processing** - Users can reply with free-text updates or structured commands
+- ✅ **Intent Classification** - OpenAI-powered intent recognition with regex fallback
+- ✅ **Comprehensive Logging** - Every message logged for review and audit
+- ✅ **Data Snapshots** - Outbound SMS includes current Airtable data
+- ✅ **Admin Commands** - Advanced admin functionality with MCP parser integration
+- ✅ **Reminder System** - Create and manage reminders with natural language timelines
+- ✅ **Clean Architecture** - Well-organized, documented codebase
 
 ## Tech Stack
 ```
