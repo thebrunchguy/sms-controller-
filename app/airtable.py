@@ -147,6 +147,14 @@ def get_person_by_phone(phone: str, prefer_checkins: bool = False) -> Optional[D
                             checkins_response = _make_request("GET", checkins_people_table, base_url=AIRTABLE_CHECKINS_BASE_URL)
                             checkins_records = checkins_response.get("records", [])
                             
+                            # Handle pagination - get all records
+                            while checkins_response.get('offset'):
+                                next_page_url = f"{checkins_people_table}?offset={checkins_response['offset']}"
+                                checkins_response = _make_request("GET", next_page_url, base_url=AIRTABLE_CHECKINS_BASE_URL)
+                                checkins_records.extend(checkins_response.get("records", []))
+                            
+                            print(f"🔍 Searching through {len(checkins_records)} records in check-ins base")
+                            
                             for checkins_record in checkins_records:
                                 checkins_name = checkins_record.get("fields", {}).get("Name", "")
                                 if checkins_name and checkins_name.lower() == person_name.lower():
