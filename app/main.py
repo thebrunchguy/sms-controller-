@@ -5,9 +5,31 @@ from datetime import datetime, date
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from . import compose, airtable, twilio_utils, llm, scheduler, admin_sms, intent_classifier, intent_handlers
+from . import compose, airtable, twilio_utils, scheduler, admin_sms, intent_classifier, intent_handlers
 
 app = FastAPI()
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def get_help_message() -> str:
+    """Get the standard help message with available commands"""
+    return """📋 Available Commands:
+• new friend [Name] - Add a new friend
+• update [Name] birthday [Date] - Update someone's birthday
+• update [Name] company [Company] - Update someone's company
+• update [Name] role [Role] - Update someone's role
+• tag [Name] with [Tag] - Add a tag to someone
+• remind me to [Action] [Timeline] - Create a reminder
+• note: [Note] - Add a note
+• follow up [Timeline] - Schedule follow-up
+• no change - Confirm no updates needed
+• stop - Unsubscribe from messages"""
+
+# =============================================================================
+# SCHEDULED JOBS
+# =============================================================================
 
 @app.post("/jobs/send-monthly")
 def send_monthly():
@@ -100,6 +122,10 @@ def send_monthly():
         print(f"Error in send_monthly job: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+# =============================================================================
+# SMS PROCESSING
+# =============================================================================
+
 @app.post("/twilio/inbound")
 async def inbound(request: Request, From: str = Form(...), Body: str = Form(...), MessageSid: str = Form(...)):
     """Handle inbound SMS from Twilio"""
@@ -121,17 +147,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             # For now, let's allow the controls command to work even without a person record
             if body_lower in ["help", "controls"]:
                 # Send help message even without person record
-                help_message = """📋 Available Commands:
-• new friend [Name] - Add a new friend
-• update [Name] birthday [Date] - Update someone's birthday
-• update [Name] company [Company] - Update someone's company
-• update [Name] role [Role] - Update someone's role
-• tag [Name] with [Tag] - Add a tag to someone
-• remind me to [Action] [Timeline] - Create a reminder
-• note: [Note] - Add a note
-• follow up [Timeline] - Schedule follow-up
-• no change - Confirm no updates needed
-• stop - Unsubscribe from messages"""
+                help_message = get_help_message()
                 
                 twilio_utils.send_sms(
                     to=from_phone,
@@ -146,17 +162,7 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
         # Handle controls command early to avoid check-in creation issues
         if body_lower in ["help", "controls"]:
             # Send help message with available commands
-            help_message = """📋 Available Commands:
-• new friend [Name] - Add a new friend
-• update [Name] birthday [Date] - Update someone's birthday
-• update [Name] company [Company] - Update someone's company
-• update [Name] role [Role] - Update someone's role
-• tag [Name] with [Tag] - Add a tag to someone
-• remind me to [Action] [Timeline] - Create a reminder
-• note: [Note] - Add a note
-• follow up [Timeline] - Schedule follow-up
-• no change - Confirm no updates needed
-• stop - Unsubscribe from messages"""
+            help_message = get_help_message()
             
             twilio_utils.send_sms(
                 to=from_phone,
@@ -478,10 +484,18 @@ def get_overdue_people():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting overdue people: {str(e)}")
 
+# =============================================================================
+# UTILITY ENDPOINTS
+# =============================================================================
+
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {"message": "SMS Check-in Service", "admin": "/admin", "docs": "/docs"}
+
+# =============================================================================
+# ADMIN ENDPOINTS (Not used in SMS flow, kept for potential future use)
+# =============================================================================
 
 @app.post("/admin/add-birthday")
 async def admin_add_birthday(name: str = Form(...), birthday: str = Form(...)):
@@ -765,6 +779,10 @@ async def debug_airtable():
         
     except Exception as e:
         return {"error": str(e), "traceback": str(e.__traceback__)}
+
+# =============================================================================
+# REMINDER SYSTEM
+# =============================================================================
 
 @app.post("/jobs/check-reminders")
 def check_reminders():
