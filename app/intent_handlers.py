@@ -6,8 +6,8 @@ Each handler processes a specific type of user request and updates the appropria
 """
 
 from typing import Dict, Any, Tuple, Optional
-from . import airtable
-from . import twilio_utils
+import airtable
+import twilio_utils
 from datetime import datetime, timedelta
 import re
 import json
