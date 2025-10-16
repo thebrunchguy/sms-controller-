@@ -191,8 +191,47 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
             }
         }
     
-    # Check for questions
-    question_words = ["what", "how", "when", "where", "why", "can you", "do you", "are you"]
+    # Check for query messages first (before generic question handling)
+    if any(word in message_lower for word in ["is", "do i have", "what", "show me", "find", "search", "look for", "tell me about"]):
+        # Extract query type and terms
+        query_type = "people"  # default
+        query_terms = []
+        
+        # Determine query type based on keywords
+        if any(word in message_lower for word in ["reminder", "remind"]):
+            query_type = "reminders"
+        elif any(word in message_lower for word in ["note", "notes"]):
+            query_type = "notes"
+        elif any(word in message_lower for word in ["checkin", "check-in", "check in"]):
+            query_type = "checkins"
+        
+        # Extract person names or keywords
+        import re
+        # Look for capitalized words that might be names, and also check for lowercase names after "named"
+        name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b'
+        matches = re.findall(name_pattern, message)
+        
+        # Also look for lowercase names after "named" or in common patterns
+        lowercase_name_pattern = r'(?:named|is|a|someone)\s+([a-z]+)'
+        lowercase_matches = re.findall(lowercase_name_pattern, message_lower)
+        
+        # Combine both patterns
+        all_matches = matches + [match.capitalize() for match in lowercase_matches]
+        
+        query_terms = [match for match in all_matches if match.lower() not in ['is', 'do', 'have', 'what', 'show', 'me', 'find', 'search', 'look', 'for', 'tell', 'about', 'any', 'the', 'a', 'an', 'there', 'someone', 'named', 'in', 'here', 'air', 'table', 'airtable']]
+        
+        return {
+            "intent": "query_data",
+            "confidence": 0.7,
+            "target_table": "Multiple",
+            "extracted_data": {
+                "query_type": query_type,
+                "query_terms": query_terms
+            }
+        }
+    
+    # Check for other questions (not query-related)
+    question_words = ["how", "when", "where", "why", "can you", "do you", "are you"]
     if any(word in message_lower for word in question_words):
         return {
             "intent": "unclear",
