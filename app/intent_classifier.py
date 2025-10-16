@@ -107,6 +107,10 @@ def classify_intent(message: str, person_context: Dict[str, Any]) -> Dict[str, A
                 }
             }
     
+    # Force fallback classification for now to ensure query functionality works
+    print("Using fallback classification for reliable query handling")
+    return _fallback_classification(message)
+    
     if not OPENAI_API_KEY:
         print("OpenAI API key not configured")
         return _fallback_classification(message)
