@@ -32,6 +32,7 @@ class IntentHandlers:
         """Handle updates to Core People table (Birthday, How We Met, etc.)"""
         
         field_updates = extracted_data.get("field_updates", {})
+        target_person_name = extracted_data.get("target_person_name", "")
         
         # Map and validate field updates for Core People table
         updates = {}
@@ -69,33 +70,32 @@ class IntentHandlers:
                 updates["How We Met"] = f"Location: {location}"
         
         if updates:
-            # Find the person in the main people table by name and email
-            # since person_id is from check-ins table
-            person_name = person_fields.get("Name", "")
-            person_email = person_fields.get("Email", "")
+            # Always require a person name in the message - never update the texter's data
+            if not target_person_name:
+                return False, "❌ Please specify whose information you want to update. For example: 'update John's birthday to 3/14/1999' or 'change Sarah's company to Tech Corp'"
             
-            # Get all people from main table and find matching record
-            main_people = airtable.get_all_people()
+            # Find and update the person mentioned in the message
             main_person_id = None
+            main_people = airtable.get_all_people()
             
             for person in main_people:
                 fields = person.get("fields", {})
-                if (fields.get("Name") == person_name and 
-                    fields.get("Email") == person_email):
+                person_name = fields.get("Name", "")
+                if person_name.lower() == target_person_name.lower():
                     main_person_id = person["id"]
                     break
             
             if not main_person_id:
-                return False, "❌ I couldn't find your profile in the main system to update. This might be due to a name or email mismatch. Please contact support if this continues."
+                return False, f"❌ I couldn't find a person named '{target_person_name}' in the system. Please check the spelling and try again."
             
             success = airtable.update_person(main_person_id, updates)
             if success:
                 updated_fields = list(updates.keys())
-                return True, f"✅ Updated {', '.join(updated_fields)} in your profile"
+                return True, f"✅ Updated {', '.join(updated_fields)} for {target_person_name}"
             else:
-                return False, "❌ I couldn't update your information in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+                return False, f"❌ I couldn't update {target_person_name}'s information in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
         
-        return False, "❌ I couldn't determine what information you'd like me to update. Please be specific, like 'update my birthday to 03/14/1999' or 'update my company to Tech Corp'"
+        return False, "❌ I couldn't determine what information you'd like me to update. Please be specific, like 'update John's birthday to 03/14/1999' or 'change Sarah's company to Tech Corp'"
     
     # =============================================================================
     # TAG MANAGEMENT
@@ -295,6 +295,203 @@ class IntentHandlers:
             return True, f"✅ Added new friend '{friend_name}' to Airtable"
         else:
             return False, f"❌ Failed to create new friend '{friend_name}'"
+
+    # =============================================================================
+    # DATA QUERYING
+    # =============================================================================
+    
+    @staticmethod
+    def handle_query_data(
+        extracted_data: Dict[str, Any], 
+        person_id: str, 
+        person_fields: Dict[str, Any]
+    ) -> Tuple[bool, str]:
+        """Handle queries about data in Airtables"""
+        
+        query_type = extracted_data.get("query_type", "people")
+        query_terms = extracted_data.get("query_terms", [])
+        
+        if not query_terms:
+            return False, "❌ I couldn't determine what you're looking for. Please be specific, like 'Is David Kobrosky in here?' or 'Do I have any reminders about Sarah?'"
+        
+        try:
+            if query_type == "people":
+                return IntentHandlers._query_people(query_terms)
+            elif query_type == "reminders":
+                return IntentHandlers._query_reminders(query_terms)
+            elif query_type == "notes":
+                return IntentHandlers._query_notes(query_terms)
+            elif query_type == "checkins":
+                return IntentHandlers._query_checkins(query_terms)
+            else:
+                return False, f"❌ I don't know how to search for {query_type}. I can search people, reminders, notes, or checkins."
+        except Exception as e:
+            return False, f"❌ Error searching data: {str(e)}"
+    
+    @staticmethod
+    def _query_people(query_terms: list) -> Tuple[bool, str]:
+        """Query people in the main people table"""
+        try:
+            all_people = airtable.get_all_people()
+            matches = []
+            
+            for person in all_people:
+                fields = person.get("fields", {})
+                person_name = fields.get("Name", "")
+                
+                # Check if any query term matches the person's name (case-insensitive)
+                for term in query_terms:
+                    if term.lower() in person_name.lower():
+                        matches.append({
+                            "name": person_name,
+                            "email": fields.get("Email", "No email"),
+                            "phone": fields.get("Phone", "No phone"),
+                            "company": fields.get("Company", "No company"),
+                            "role": fields.get("Role", "No role"),
+                            "birthday": fields.get("Birthday", "No birthday"),
+                            "tags": fields.get("Tags", [])
+                        })
+                        break
+            
+            if not matches:
+                return True, f"❌ No people found matching: {', '.join(query_terms)}"
+            
+            if len(matches) == 1:
+                person = matches[0]
+                response = f"✅ Found {person['name']}:\n"
+                response += f"📧 Email: {person['email']}\n"
+                response += f"📞 Phone: {person['phone']}\n"
+                response += f"🏢 Company: {person['company']}\n"
+                response += f"💼 Role: {person['role']}\n"
+                response += f"🎂 Birthday: {person['birthday']}\n"
+                if person['tags']:
+                    response += f"🏷️ Tags: {', '.join(person['tags'])}"
+                return True, response
+            else:
+                response = f"✅ Found {len(matches)} people matching: {', '.join(query_terms)}\n\n"
+                for i, person in enumerate(matches, 1):
+                    response += f"{i}. {person['name']} ({person['email']})\n"
+                return True, response
+                
+        except Exception as e:
+            return False, f"❌ Error searching people: {str(e)}"
+    
+    @staticmethod
+    def _query_reminders(query_terms: list) -> Tuple[bool, str]:
+        """Query reminders table"""
+        try:
+            # Get all reminders
+            reminders = airtable.get_all_reminders()
+            matches = []
+            
+            for reminder in reminders:
+                fields = reminder.get("fields", {})
+                action = fields.get("Action", "")
+                person_name = fields.get("Person Name", "")
+                
+                # Check if any query term matches the action or person name
+                for term in query_terms:
+                    if (term.lower() in action.lower() or 
+                        term.lower() in person_name.lower()):
+                        matches.append({
+                            "action": action,
+                            "person": person_name,
+                            "timeline": fields.get("Timeline", "No timeline"),
+                            "priority": fields.get("Priority", "No priority"),
+                            "status": fields.get("Status", "No status"),
+                            "created": fields.get("Created", "Unknown date")
+                        })
+                        break
+            
+            if not matches:
+                return True, f"❌ No reminders found matching: {', '.join(query_terms)}"
+            
+            response = f"✅ Found {len(matches)} reminder(s) matching: {', '.join(query_terms)}\n\n"
+            for i, reminder in enumerate(matches, 1):
+                response += f"{i}. {reminder['action']}\n"
+                response += f"   👤 Person: {reminder['person']}\n"
+                response += f"   ⏰ Timeline: {reminder['timeline']}\n"
+                response += f"   🔥 Priority: {reminder['priority']}\n"
+                response += f"   📊 Status: {reminder['status']}\n\n"
+            
+            return True, response
+            
+        except Exception as e:
+            return False, f"❌ Error searching reminders: {str(e)}"
+    
+    @staticmethod
+    def _query_notes(query_terms: list) -> Tuple[bool, str]:
+        """Query notes (stored in How We Met field of people)"""
+        try:
+            all_people = airtable.get_all_people()
+            matches = []
+            
+            for person in all_people:
+                fields = person.get("fields", {})
+                person_name = fields.get("Name", "")
+                how_we_met = fields.get("How We Met", "")
+                
+                # Check if any query term matches the person's name or notes
+                for term in query_terms:
+                    if (term.lower() in person_name.lower() or 
+                        term.lower() in how_we_met.lower()):
+                        matches.append({
+                            "name": person_name,
+                            "notes": how_we_met
+                        })
+                        break
+            
+            if not matches:
+                return True, f"❌ No notes found matching: {', '.join(query_terms)}"
+            
+            response = f"✅ Found {len(matches)} person(s) with notes matching: {', '.join(query_terms)}\n\n"
+            for i, match in enumerate(matches, 1):
+                response += f"{i}. {match['name']}:\n"
+                response += f"   📝 {match['notes']}\n\n"
+            
+            return True, response
+            
+        except Exception as e:
+            return False, f"❌ Error searching notes: {str(e)}"
+    
+    @staticmethod
+    def _query_checkins(query_terms: list) -> Tuple[bool, str]:
+        """Query check-ins table"""
+        try:
+            # Get all check-ins
+            checkins = airtable.get_all_checkins()
+            matches = []
+            
+            for checkin in checkins:
+                fields = checkin.get("fields", {})
+                person_name = fields.get("Person Name", "")
+                month = fields.get("Month", "")
+                status = fields.get("Status", "")
+                
+                # Check if any query term matches the person's name
+                for term in query_terms:
+                    if term.lower() in person_name.lower():
+                        matches.append({
+                            "person": person_name,
+                            "month": month,
+                            "status": status,
+                            "created": fields.get("Created", "Unknown date")
+                        })
+                        break
+            
+            if not matches:
+                return True, f"❌ No check-ins found matching: {', '.join(query_terms)}"
+            
+            response = f"✅ Found {len(matches)} check-in(s) matching: {', '.join(query_terms)}\n\n"
+            for i, checkin in enumerate(matches, 1):
+                response += f"{i}. {checkin['person']} - {checkin['month']}\n"
+                response += f"   📊 Status: {checkin['status']}\n"
+                response += f"   📅 Created: {checkin['created']}\n\n"
+            
+            return True, response
+            
+        except Exception as e:
+            return False, f"❌ Error searching check-ins: {str(e)}"
 
 # =============================================================================
 # HELPER FUNCTIONS

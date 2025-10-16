@@ -392,6 +392,26 @@ def get_all_people() -> List[Dict]:
         print(f"Error getting all people: {e}")
         return []
 
+def get_all_reminders() -> List[Dict]:
+    """Get all reminders from Airtable"""
+    try:
+        endpoint = f"{AIRTABLE_REMINDERS_TABLE}"
+        response = _make_request("GET", endpoint, base_url=AIRTABLE_REMINDERS_BASE_URL)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting all reminders: {e}")
+        return []
+
+def get_all_checkins() -> List[Dict]:
+    """Get all check-ins from Airtable"""
+    try:
+        endpoint = f"{AIRTABLE_CHECKINS_TABLE}"
+        response = _make_request("GET", endpoint, base_url=AIRTABLE_CHECKINS_BASE_URL)
+        return response.get("records", [])
+    except Exception as e:
+        print(f"Error getting all check-ins: {e}")
+        return []
+
 # =============================================================================
 # REMINDER MANAGEMENT
 # =============================================================================

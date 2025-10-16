@@ -374,6 +374,10 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                     success, response_message = intent_handlers.IntentHandlers.handle_new_friend(
                         extracted_data, person_id, person_fields
                     )
+                elif intent == "query_data":
+                    success, response_message = intent_handlers.IntentHandlers.handle_query_data(
+                        extracted_data, person_id, person_fields
+                    )
                 elif intent == "unclear":
                     # Check if there's a custom error message from the intent classifier
                     error_message = extracted_data.get("error_message", "")

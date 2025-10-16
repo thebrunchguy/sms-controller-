@@ -83,6 +83,30 @@ def classify_intent(message: str, person_context: Dict[str, Any]) -> Dict[str, A
     Returns:
         Dictionary with intent classification, target table, and extracted data
     """
+    # Check for self-referential terms or missing person names that should be rejected immediately
+    message_lower = message.lower()
+    if any(word in message_lower for word in ["birthday", "born", "birth"]):
+        # Check for self-referential terms
+        if any(word in message_lower for word in ["my", "mine", "i am", "i'm"]):
+            return {
+                "intent": "unclear",
+                "confidence": 0.3,
+                "extracted_data": {
+                    "error_message": "❌ Please specify whose birthday you want to update. For example: 'update John's birthday to 3/14/1999'"
+                }
+            }
+        
+        # Check for messages without explicit person names
+        person_name = _extract_person_name_from_birthday_update(message)
+        if not person_name:
+            return {
+                "intent": "unclear",
+                "confidence": 0.3,
+                "extracted_data": {
+                    "error_message": "❌ Please specify whose birthday you want to update. For example: 'update John's birthday to 3/14/1999'"
+                }
+            }
+    
     if not OPENAI_API_KEY:
         print("OpenAI API key not configured")
         return _fallback_classification(message)
@@ -96,6 +120,8 @@ Current person context: {json.dumps(person_context, indent=2)}
 
 Classify the user's intent and determine which Airtable table should be updated from this message: "{message}"
 
+IMPORTANT: This system is ONLY used to update OTHER PEOPLE'S data, never the texter's own data. The texter is always updating someone else's information.
+
 Available intents and their target tables:
 - update_person_info → Core People table: Updates to personal info (birthday, company/role stored in How We Met field, location stored in How We Met field)
 - manage_tags → Core People table: Adding or removing tags (General Tag, Location Tag, Community Tag, Communication Tag)
@@ -103,6 +129,7 @@ Available intents and their target tables:
 - create_note → Core People table: Adding notes (stored in How We Met field)
 - schedule_followup → SMS Check-ins - From Core table: Scheduling future check-ins or meetings
 - new_friend → Core People table: Creating a new friend/person record
+- query_data → Multiple tables: Querying information from Airtables (people, reminders, notes, etc.)
 - no_change → None: Confirming no updates needed
 - confirm_changes → None: Confirming previously proposed changes
 - opt_out → Core People table: Unsubscribing from messages
@@ -111,12 +138,13 @@ Available intents and their target tables:
 Note: LinkedIn table is read-only (auto-populated from LinkedIn), so company/role updates are stored in Core People "How We Met" field.
 
 Extract relevant data based on the intent:
-- For update_person_info: extract field_updates with specific fields to change (birthday, company, role, location)
+- For update_person_info: ALWAYS extract target_person_name (the person whose info is being updated) AND field_updates with specific fields to change (birthday, company, role, location). NEVER use the current person context - the texter is always updating someone else's data. If no specific person is mentioned, classify as "unclear". Examples: "update John's birthday to 3/14/1999", "change Sarah's company to Tech Corp"
 - For manage_tags: extract tags_to_add and/or tags_to_remove arrays, and determine which tag field (General Tag, Location Tag, etc.)
 - For create_reminder: extract reminder_action, reminder_timeline, and reminder_priority
 - For create_note: extract note_content
 - For schedule_followup: extract followup_timeline and followup_reason
 - For new_friend: extract friend_name from messages like "new friend John Smith", "met Sarah Johnson", "introduce Mike Wilson"
+- For query_data: extract query_type (people, reminders, notes, checkins, etc.) and query_terms (person names, keywords, etc.). Examples: "Is David Kobrosky in here", "Do I have any reminders about David?", "What notes do I have about Sarah?"
 
 Return a JSON object with the intent, confidence (0-1), target_table, and extracted_data."""
 
@@ -185,11 +213,35 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
             "extracted_data": {"friend_name": friend_name}
         }
     elif any(word in message_lower for word in ["birthday", "born", "birth"]):
+        # Check for explicit person names first
+        person_name = _extract_person_name_from_birthday_update(message)
+        
+        # Also check for "my" or other self-referential terms that should be rejected
+        if any(word in message_lower for word in ["my", "mine", "i am", "i'm"]):
+            return {
+                "intent": "unclear",
+                "confidence": 0.3,
+                "extracted_data": {
+                    "error_message": "❌ Please specify whose birthday you want to update. For example: 'update John's birthday to 3/14/1999'"
+                }
+            }
+        
+        if not person_name:
+            return {
+                "intent": "unclear",
+                "confidence": 0.3,
+                "extracted_data": {
+                    "error_message": "❌ Please specify whose birthday you want to update. For example: 'update John's birthday to 3/14/1999'"
+                }
+            }
         return {
             "intent": "update_person_info",
             "confidence": 0.7,
             "target_table": "Core People",
-            "extracted_data": {"field_updates": {"birthday": _extract_birthday(message)}}
+            "extracted_data": {
+                "field_updates": {"birthday": _extract_birthday(message)},
+                "target_person_name": person_name
+            }
         }
     elif any(word in message_lower for word in ["tag", "label", "categorize"]):
         return {
@@ -215,6 +267,35 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
             "confidence": 0.6,
             "target_table": "Core People",
             "extracted_data": {"note_content": message}
+        }
+    elif any(word in message_lower for word in ["is", "do i have", "what", "show me", "find", "search", "look for", "tell me about"]):
+        # Extract query type and terms
+        query_type = "people"  # default
+        query_terms = []
+        
+        # Determine query type based on keywords
+        if any(word in message_lower for word in ["reminder", "remind"]):
+            query_type = "reminders"
+        elif any(word in message_lower for word in ["note", "notes"]):
+            query_type = "notes"
+        elif any(word in message_lower for word in ["checkin", "check-in", "check in"]):
+            query_type = "checkins"
+        
+        # Extract person names or keywords
+        import re
+        # Look for capitalized words that might be names
+        name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b'
+        matches = re.findall(name_pattern, message)
+        query_terms = [match for match in matches if match.lower() not in ['is', 'do', 'have', 'what', 'show', 'me', 'find', 'search', 'look', 'for', 'tell', 'about', 'any', 'the', 'a', 'an']]
+        
+        return {
+            "intent": "query_data",
+            "confidence": 0.7,
+            "target_table": "Multiple",
+            "extracted_data": {
+                "query_type": query_type,
+                "query_terms": query_terms
+            }
         }
     else:
         return {
@@ -286,6 +367,40 @@ def _extract_friend_name(message: str) -> str:
         r'new\s+friend\s+(.+)',
         r'met\s+(.+)',
         r'introduce\s+(.+)'
+    ]
+    
+    message_lower = message.lower()
+    for pattern in patterns:
+        match = re.search(pattern, message_lower)
+        if match:
+            name = match.group(1).strip()
+            # Clean up the name (remove extra words, capitalize properly)
+            name_parts = name.split()
+            if name_parts:
+                return ' '.join([part.capitalize() for part in name_parts])
+    
+    return ""
+
+def _extract_person_name_from_birthday_update(message: str) -> str:
+    """Extract person name from birthday update messages"""
+    import re
+    
+    # Patterns for birthday update messages
+    patterns = [
+        # "update [Name]'s birthday to [date]"
+        r'update\s+([A-Za-z\s]+?)\'s\s+birthday',
+        # "change [Name]'s birthday to [date]"
+        r'change\s+([A-Za-z\s]+?)\'s\s+birthday',
+        # "set [Name]'s birthday to [date]"
+        r'set\s+([A-Za-z\s]+?)\'s\s+birthday',
+        # "[Name]'s birthday is [date]"
+        r'([A-Za-z\s]+?)\'s\s+birthday\s+is',
+        # "birthday for [Name] is [date]"
+        r'birthday\s+for\s+([A-Za-z\s]+?)\s+is',
+        # "update [Name] birthday [date]"
+        r'update\s+([A-Za-z\s]+?)\s+birthday\s+(?:to\s+)?',
+        # "change [Name] birthday [date]"
+        r'change\s+([A-Za-z\s]+?)\s+birthday\s+(?:to\s+)?',
     ]
     
     message_lower = message.lower()
