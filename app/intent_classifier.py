@@ -219,8 +219,15 @@ def _fallback_classification(message: str) -> Dict[str, Any]:
         lowercase_name_pattern = r'(?:named|is|a|someone)\s+([a-z]+)'
         lowercase_matches = re.findall(lowercase_name_pattern, message_lower)
         
-        # Combine both patterns
-        all_matches = matches + [match.capitalize() for match in lowercase_matches]
+        # Also look for standalone lowercase words that might be names
+        standalone_lowercase_pattern = r'\b([a-z]{3,})\b'
+        standalone_matches = re.findall(standalone_lowercase_pattern, message_lower)
+        # Filter out common words
+        common_words = {'there', 'someone', 'named', 'here', 'table', 'air', 'airtable', 'is', 'do', 'have', 'what', 'show', 'me', 'find', 'search', 'look', 'for', 'tell', 'about', 'any', 'the', 'a', 'an', 'in', 'to', 'with', 'and', 'or', 'but'}
+        standalone_matches = [match for match in standalone_matches if match not in common_words]
+        
+        # Combine all patterns
+        all_matches = matches + [match.capitalize() for match in lowercase_matches] + [match.capitalize() for match in standalone_matches]
         
         query_terms = [match for match in all_matches if match.lower() not in ['is', 'do', 'have', 'what', 'show', 'me', 'find', 'search', 'look', 'for', 'tell', 'about', 'any', 'the', 'a', 'an', 'there', 'someone', 'named', 'in', 'here', 'air', 'table', 'airtable']]
         
