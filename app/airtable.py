@@ -36,11 +36,13 @@ AIRTABLE_REMINDERS_BASE_ID = os.getenv("AIRTABLE_REMINDERS_BASE_ID", AIRTABLE_BA
 AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE = os.getenv("AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE", "People")
 AIRTABLE_REMINDERS_TABLE = os.getenv("AIRTABLE_REMINDERS_TABLE", "Reminders")
 AIRTABLE_NOTES_TABLE = os.getenv("AIRTABLE_NOTES_TABLE", "Notes")
+AIRTABLE_NOTES_BASE_ID = os.getenv("AIRTABLE_NOTES_BASE_ID", AIRTABLE_BASE_ID)
 AIRTABLE_FOLLOWUPS_TABLE = os.getenv("AIRTABLE_FOLLOWUPS_TABLE", "Followups")
 
 AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
 AIRTABLE_CHECKINS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_CHECKINS_BASE_ID}"
 AIRTABLE_REMINDERS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_REMINDERS_BASE_ID}"
+AIRTABLE_NOTES_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_NOTES_BASE_ID}"
 
 # =============================================================================
 # EXCEPTIONS
@@ -508,7 +510,7 @@ def create_note(note_data: Dict[str, Any]) -> bool:
             }]
         }
         
-        response = _make_request("POST", AIRTABLE_NOTES_TABLE, data)
+        response = _make_request("POST", AIRTABLE_NOTES_TABLE, data, base_url=AIRTABLE_NOTES_BASE_URL)
         return response is not None
     except Exception as e:
         print(f"Error creating note: {e}")
