@@ -123,10 +123,10 @@ Note: LinkedIn table is read-only (auto-populated from LinkedIn), so company/rol
 
 Extract relevant data based on the intent:
 - For update_person_info: ALWAYS extract target_person_name (the person whose info is being updated) AND field_updates with specific fields to change (birthday, company, role, location). NEVER use the current person context - the texter is always updating someone else's data. If no specific person is mentioned, classify as "unclear". Examples: "update John's birthday to 3/14/1999", "change Sarah's company to Tech Corp"
-- For manage_tags: extract tags_to_add and/or tags_to_remove arrays, and determine which tag field (General Tag, Location Tag, etc.)
-- For create_reminder: extract reminder_action, reminder_timeline, and reminder_priority
-- For create_note: extract note_content
-- For schedule_followup: extract followup_timeline and followup_reason
+- For manage_tags: extract target_person_name (the person whose tags are being updated) AND tags_to_add and/or tags_to_remove arrays. NEVER use the current person context - the texter is always updating someone else's tags. If no specific person is mentioned, classify as "unclear". Examples: "tag John with mentor", "remove developer tag from Sarah"
+- For create_reminder: extract reminder_action, reminder_timeline, and reminder_priority. If the action mentions a specific person, extract target_person_name. Examples: "remind me to call John tomorrow" → target_person_name: "John"
+- For create_note: extract target_person_name (the person the note is about) AND note_content. NEVER use the current person context - the texter is always adding notes about someone else. If no specific person is mentioned, classify as "unclear". Examples: "add a note to John about crypto interest", "note: Sarah mentioned PM role"
+- For schedule_followup: extract target_person_name (who to follow up with) AND followup_timeline and followup_reason. NEVER use the current person context - the texter is always scheduling follow-ups with someone else. If no specific person is mentioned, classify as "unclear". Examples: "follow up with John next week", "schedule follow-up with Sarah about project"
 - For new_friend: extract friend_name from messages like "new friend John Smith", "met Sarah Johnson", "introduce Mike Wilson"
 - For query_data: extract query_type (people, reminders, notes, checkins, etc.) and query_terms as an ARRAY of strings (person names, keywords, etc.). Examples: "Is David Kobrosky in here" → query_terms: ["David Kobrosky"], "Do I have any reminders about David?" → query_terms: ["David"], "What notes do I have about Sarah?" → query_terms: ["Sarah"]
 

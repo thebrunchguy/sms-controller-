@@ -111,12 +111,25 @@ class IntentHandlers:
         
         tags_to_add = extracted_data.get("tags_to_add", [])
         tags_to_remove = extracted_data.get("tags_to_remove", [])
+        target_person_name = extracted_data.get("target_person_name", "")
         
         if not tags_to_add and not tags_to_remove:
-            return False, "❌ I couldn't determine which tags you'd like to add or remove. Please be specific, like 'tag me with mentor' or 'remove the developer tag'"
+            return False, "❌ I couldn't determine which tags you'd like to add or remove. Please be specific, like 'tag John with mentor' or 'remove the developer tag from Sarah'"
         
-        # Get current tags from People table
-        current_tags = person_fields.get("Tags", [])
+        # Always require a target person name - never update the texter's data
+        if not target_person_name:
+            return False, "❌ Please specify whose tags you want to update. For example: 'tag John with mentor' or 'remove the developer tag from Sarah'"
+        
+        # Find the target person in the main people table
+        target_person = airtable.find_person_by_name(target_person_name)
+        if not target_person:
+            return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
+        
+        target_person_id = target_person["id"]
+        target_person_fields = target_person.get("fields", {})
+        
+        # Get current tags from target person's record
+        current_tags = target_person_fields.get("Tags", [])
         
         # Add new tags
         if tags_to_add:
@@ -129,7 +142,7 @@ class IntentHandlers:
         # Remove duplicates
         current_tags = list(set(current_tags))
         
-        success = airtable.update_person(person_id, {"Tags": current_tags})
+        success = airtable.update_person(target_person_id, {"Tags": current_tags})
         
         if success:
             messages = []
@@ -137,9 +150,9 @@ class IntentHandlers:
                 messages.append(f"Added: {', '.join(tags_to_add)}")
             if tags_to_remove:
                 messages.append(f"Removed: {', '.join(tags_to_remove)}")
-            return True, f"✅ Tags updated - {', '.join(messages)}"
+            return True, f"✅ Tags updated for {target_person_name} - {', '.join(messages)}"
         else:
-            return False, "❌ I couldn't update your tags in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+            return False, f"❌ I couldn't update {target_person_name}'s tags in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
     # =============================================================================
     # REMINDER MANAGEMENT
@@ -250,17 +263,29 @@ class IntentHandlers:
         
         timeline = extracted_data.get("followup_timeline", "")
         reason = extracted_data.get("followup_reason", "")
+        target_person_name = extracted_data.get("target_person_name", "")
         
         if not timeline:
-            return False, "❌ I couldn't determine when you'd like to schedule the follow-up. Please specify a time, like 'follow up next week' or 'follow up in 2 weeks'"
+            return False, "❌ I couldn't determine when you'd like to schedule the follow-up. Please specify a time, like 'follow up with John next week' or 'follow up with Sarah in 2 weeks'"
+        
+        # Always require a target person name - never schedule follow-up for the texter
+        if not target_person_name:
+            return False, "❌ Please specify who you'd like to follow up with. For example: 'follow up with John next week' or 'follow up with Sarah in 2 weeks'"
+        
+        # Find the target person in the main people table
+        target_person = airtable.find_person_by_name(target_person_name)
+        if not target_person:
+            return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
+        
+        target_person_id = target_person["id"]
         
         # Calculate follow-up date
         followup_date = _parse_timeline_to_date(timeline)
         
         # Create follow-up record
         followup_data = {
-            "Person": [person_id],
-            "Reason": reason or "Scheduled follow-up",
+            "Person": [target_person_id],
+            "Reason": reason or f"Follow up with {target_person_name}",
             "Timeline": timeline,
             "Scheduled Date": followup_date.isoformat() if followup_date else None,
             "Status": "Scheduled",
@@ -271,9 +296,9 @@ class IntentHandlers:
         success = airtable.create_followup(followup_data)
         
         if success:
-            return True, f"✅ Follow-up scheduled: {timeline}"
+            return True, f"✅ Follow-up scheduled with {target_person_name}: {timeline}"
         else:
-            return False, "❌ I couldn't schedule the follow-up in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+            return False, f"❌ I couldn't schedule the follow-up with {target_person_name} in your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
     # =============================================================================
     # FRIEND MANAGEMENT
