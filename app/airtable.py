@@ -502,8 +502,13 @@ def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
 def create_note(note_data: Dict[str, Any]) -> bool:
     """Create a new note record in the Notes table"""
     try:
-        endpoint = f"{AIRTABLE_NOTES_TABLE}"
-        response = _make_request("POST", endpoint, {"fields": note_data})
+        data = {
+            "records": [{
+                "fields": note_data
+            }]
+        }
+        
+        response = _make_request("POST", AIRTABLE_NOTES_TABLE, data)
         return response is not None
     except Exception as e:
         print(f"Error creating note: {e}")
@@ -516,8 +521,13 @@ def create_note(note_data: Dict[str, Any]) -> bool:
 def create_followup(followup_data: Dict[str, Any]) -> bool:
     """Create a new follow-up record in the Followups table"""
     try:
-        endpoint = f"{AIRTABLE_FOLLOWUPS_TABLE}"
-        response = _make_request("POST", endpoint, {"fields": followup_data})
+        data = {
+            "records": [{
+                "fields": followup_data
+            }]
+        }
+        
+        response = _make_request("POST", AIRTABLE_FOLLOWUPS_TABLE, data)
         return response is not None
     except Exception as e:
         print(f"Error creating followup: {e}")
