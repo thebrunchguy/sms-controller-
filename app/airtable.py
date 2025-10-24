@@ -451,6 +451,24 @@ def create_reminder_for_person(person_name: str, reminder_text: str, due_date: s
         print(f"Error creating reminder for person: {e}")
         return False
 
+def find_person_by_name(person_name: str) -> Optional[Dict[str, Any]]:
+    """Find a person in the main people table by name"""
+    try:
+        # Get all people from the main people table
+        people = get_all_people()
+        
+        # Search for person by name (case-insensitive)
+        name_lower = person_name.lower()
+        for person in people:
+            person_name_field = person.get('fields', {}).get('Name', '')
+            if name_lower in person_name_field.lower():
+                return person
+        
+        return None
+    except Exception as e:
+        print(f"Error finding person by name: {e}")
+        return None
+
 def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
     """Find a person in the reminders base main people table"""
     try:

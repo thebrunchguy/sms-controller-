@@ -52,6 +52,7 @@ INTENT_CLASSIFICATION_SCHEMA = {
             "type": "object",
             "properties": {
                 "target_person": {"type": "string"},
+                "target_person_name": {"type": "string"},
                 "field_updates": {"type": "object"},
                 "tags_to_add": {"type": "array", "items": {"type": "string"}},
                 "tags_to_remove": {"type": "array", "items": {"type": "string"}},

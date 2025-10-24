@@ -204,13 +204,24 @@ class IntentHandlers:
         """Handle creating notes in Notes table"""
         
         note_content = extracted_data.get("note_content", "")
+        target_person_name = extracted_data.get("target_person_name", "")
         
         if not note_content:
             return False, "❌ I couldn't determine what note you'd like me to add. Please be more specific, like 'note: John mentioned he's interested in the PM role'"
         
+        # If there's a target person, find them first
+        target_person_id = person_id  # Default to current person
+        if target_person_name:
+            # Find the target person in the main people table
+            target_person = airtable.find_person_by_name(target_person_name)
+            if target_person:
+                target_person_id = target_person["id"]
+            else:
+                return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
+        
         # Create note record
         note_data = {
-            "Person": [person_id],
+            "Person": [target_person_id],
             "Content": note_content,
             "Type": "SMS Note",
             "Created At": datetime.now().isoformat(),
@@ -220,7 +231,8 @@ class IntentHandlers:
         success = airtable.create_note(note_data)
         
         if success:
-            return True, f"✅ Note added: {note_content[:50]}{'...' if len(note_content) > 50 else ''}"
+            target_text = f" for {target_person_name}" if target_person_name else ""
+            return True, f"✅ Note added{target_text}: {note_content[:50]}{'...' if len(note_content) > 50 else ''}"
         else:
             return False, "❌ I couldn't save the note to your system. This might be due to a connection issue. Please try again or contact support if the problem persists."
     
