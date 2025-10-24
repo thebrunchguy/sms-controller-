@@ -22,10 +22,14 @@ def get_help_message() -> str:
 • update [Name] role [Role] - Update someone's role
 • tag [Name] with [Tag] - Add a tag to someone
 • remind me to [Action] [Timeline] - Create a reminder
-• note: [Note] - Add a note
-• follow up [Timeline] - Schedule follow-up
+• add a note to [Name] about [Note] - Add a note about someone
+• follow up with [Name] [Timeline] - Schedule follow-up with someone
+• is [Name] in here? - Check if someone is in your contacts
+• do i have any reminders about [Name]? - Check reminders
 • no change - Confirm no updates needed
-• stop - Unsubscribe from messages"""
+• stop - Unsubscribe from messages
+
+💡 All commands work on OTHER PEOPLE'S data, not your own!"""
 
 # =============================================================================
 # SCHEDULED JOBS
