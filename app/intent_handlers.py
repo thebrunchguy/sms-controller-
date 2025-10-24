@@ -311,6 +311,10 @@ class IntentHandlers:
         query_type = extracted_data.get("query_type", "people")
         query_terms = extracted_data.get("query_terms", [])
         
+        # Handle case where query_terms might be a string instead of array
+        if isinstance(query_terms, str):
+            query_terms = [query_terms]
+        
         if not query_terms:
             return False, "❌ I couldn't determine what you're looking for. Please be specific, like 'Is David Kobrosky in here?' or 'Do I have any reminders about Sarah?'"
         

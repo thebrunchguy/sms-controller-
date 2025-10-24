@@ -60,7 +60,9 @@ INTENT_CLASSIFICATION_SCHEMA = {
                 "reminder_priority": {"type": "string", "enum": ["low", "medium", "high"]},
                 "note_content": {"type": "string"},
                 "followup_timeline": {"type": "string"},
-                "followup_reason": {"type": "string"}
+                "followup_reason": {"type": "string"},
+                "query_type": {"type": "string"},
+                "query_terms": {"type": "array", "items": {"type": "string"}}
             }
         }
     },
@@ -125,7 +127,7 @@ Extract relevant data based on the intent:
 - For create_note: extract note_content
 - For schedule_followup: extract followup_timeline and followup_reason
 - For new_friend: extract friend_name from messages like "new friend John Smith", "met Sarah Johnson", "introduce Mike Wilson"
-- For query_data: extract query_type (people, reminders, notes, checkins, etc.) and query_terms (person names, keywords, etc.). Examples: "Is David Kobrosky in here", "Do I have any reminders about David?", "What notes do I have about Sarah?"
+- For query_data: extract query_type (people, reminders, notes, checkins, etc.) and query_terms as an ARRAY of strings (person names, keywords, etc.). Examples: "Is David Kobrosky in here" → query_terms: ["David Kobrosky"], "Do I have any reminders about David?" → query_terms: ["David"], "What notes do I have about Sarah?" → query_terms: ["Sarah"]
 
 Return a JSON object with the intent, confidence (0-1), target_table, and extracted_data."""
 
