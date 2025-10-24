@@ -530,8 +530,13 @@ def find_person_in_main_base(person_name: str) -> Optional[Dict[str, Any]]:
 def create_note(note_data: Dict[str, Any]) -> bool:
     """Create a new note record in the Notes table"""
     try:
-        endpoint = f"{AIRTABLE_NOTES_TABLE}"
-        response = _make_request("POST", endpoint, {"fields": note_data})
+        data = {
+            "records": [{
+                "fields": note_data
+            }]
+        }
+        
+        response = _make_request("POST", AIRTABLE_NOTES_TABLE, data, base_url=AIRTABLE_NOTES_BASE_URL)
         return response is not None
     except Exception as e:
         print(f"Error creating note: {e}")

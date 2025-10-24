@@ -234,11 +234,10 @@ class IntentHandlers:
         
         # Create note record
         note_data = {
-            "Person": [target_person_id],
-            "Content": note_content,
-            "Type": "SMS Note",
-            "Created At": datetime.now().isoformat(),
-            "Created By": "SMS"
+            "Note": note_content,
+            "Link to Notes Main View": [target_person_id],
+            "Type of note": ["Interaction"],
+            "Date": datetime.now().strftime("%Y-%m-%d")
         }
         
         success = airtable.create_note(note_data)
