@@ -36,13 +36,11 @@ AIRTABLE_REMINDERS_BASE_ID = os.getenv("AIRTABLE_REMINDERS_BASE_ID", AIRTABLE_BA
 AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE = os.getenv("AIRTABLE_REMINDERS_MAIN_PEOPLE_TABLE", "People")
 AIRTABLE_REMINDERS_TABLE = os.getenv("AIRTABLE_REMINDERS_TABLE", "Reminders")
 AIRTABLE_NOTES_TABLE = os.getenv("AIRTABLE_NOTES_TABLE", "Notes")
-AIRTABLE_NOTES_BASE_ID = os.getenv("AIRTABLE_NOTES_BASE_ID", AIRTABLE_BASE_ID)
 AIRTABLE_FOLLOWUPS_TABLE = os.getenv("AIRTABLE_FOLLOWUPS_TABLE", "Followups")
 
 AIRTABLE_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}"
 AIRTABLE_CHECKINS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_CHECKINS_BASE_ID}"
 AIRTABLE_REMINDERS_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_REMINDERS_BASE_ID}"
-AIRTABLE_NOTES_BASE_URL = f"https://api.airtable.com/v0/{AIRTABLE_NOTES_BASE_ID}"
 
 # =============================================================================
 # EXCEPTIONS
@@ -453,24 +451,6 @@ def create_reminder_for_person(person_name: str, reminder_text: str, due_date: s
         print(f"Error creating reminder for person: {e}")
         return False
 
-def find_person_by_name(person_name: str) -> Optional[Dict[str, Any]]:
-    """Find a person in the main people table by name"""
-    try:
-        # Get all people from the main people table
-        people = get_all_people()
-        
-        # Search for person by name (case-insensitive)
-        name_lower = person_name.lower()
-        for person in people:
-            person_name_field = person.get('fields', {}).get('Name', '')
-            if name_lower in person_name_field.lower():
-                return person
-        
-        return None
-    except Exception as e:
-        print(f"Error finding person by name: {e}")
-        return None
-
 def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
     """Find a person in the reminders base main people table"""
     try:
@@ -497,6 +477,49 @@ def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
         print(f"Error finding person in reminders base: {e}")
         return None
 
+def find_person_in_notes_base(person_name: str) -> Optional[Dict[str, Any]]:
+    """Find a person in the Notes base people table by name"""
+    try:
+        endpoint = f"{AIRTABLE_NOTES_MAIN_PEOPLE_TABLE}"
+        # Use case-insensitive search with LOWER() function
+        params = {"filterByFormula": f"SEARCH(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_NOTES_BASE_URL)
+        
+        records = response.get("records", [])
+        if records:
+            return records[0]  # Return first match
+        
+        # If no exact match, try partial matching
+        params = {"filterByFormula": f"FIND(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_NOTES_BASE_URL)
+        
+        records = response.get("records", [])
+        if records:
+            return records[0]  # Return first match
+        
+        return None
+    except Exception as e:
+        print(f"Error finding person in notes base: {e}")
+        return None
+
+def find_person_in_main_base(person_name: str) -> Optional[Dict[str, Any]]:
+    """Find a person in the main base people table by name"""
+    try:
+        # Get all people from the main people table
+        people = get_all_people()
+        
+        # Search for person by name (case-insensitive)
+        name_lower = person_name.lower()
+        for person in people:
+            person_name_field = person.get('fields', {}).get('Name', '')
+            if name_lower in person_name_field.lower():
+                return person
+        
+        return None
+    except Exception as e:
+        print(f"Error finding person in main base: {e}")
+        return None
+
 # =============================================================================
 # NOTES MANAGEMENT
 # =============================================================================
@@ -504,13 +527,8 @@ def find_person_in_reminders_base(person_name: str) -> Optional[Dict[str, Any]]:
 def create_note(note_data: Dict[str, Any]) -> bool:
     """Create a new note record in the Notes table"""
     try:
-        data = {
-            "records": [{
-                "fields": note_data
-            }]
-        }
-        
-        response = _make_request("POST", AIRTABLE_NOTES_TABLE, data, base_url=AIRTABLE_NOTES_BASE_URL)
+        endpoint = f"{AIRTABLE_NOTES_TABLE}"
+        response = _make_request("POST", endpoint, {"fields": note_data})
         return response is not None
     except Exception as e:
         print(f"Error creating note: {e}")
@@ -523,13 +541,8 @@ def create_note(note_data: Dict[str, Any]) -> bool:
 def create_followup(followup_data: Dict[str, Any]) -> bool:
     """Create a new follow-up record in the Followups table"""
     try:
-        data = {
-            "records": [{
-                "fields": followup_data
-            }]
-        }
-        
-        response = _make_request("POST", AIRTABLE_FOLLOWUPS_TABLE, data)
+        endpoint = f"{AIRTABLE_FOLLOWUPS_TABLE}"
+        response = _make_request("POST", endpoint, {"fields": followup_data})
         return response is not None
     except Exception as e:
         print(f"Error creating followup: {e}")

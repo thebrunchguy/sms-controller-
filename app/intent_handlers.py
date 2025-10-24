@@ -121,7 +121,7 @@ class IntentHandlers:
             return False, "❌ Please specify whose tags you want to update. For example: 'tag John with mentor' or 'remove the developer tag from Sarah'"
         
         # Find the target person in the main people table
-        target_person = airtable.find_person_by_name(target_person_name)
+        target_person = airtable.find_person_in_main_base(target_person_name)
         if not target_person:
             return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
         
@@ -225,8 +225,8 @@ class IntentHandlers:
         # If there's a target person, find them first
         target_person_id = person_id  # Default to current person
         if target_person_name:
-            # Find the target person in the main people table
-            target_person = airtable.find_person_by_name(target_person_name)
+            # Find the target person in the notes base people table
+            target_person = airtable.find_person_in_notes_base(target_person_name)
             if target_person:
                 target_person_id = target_person["id"]
             else:
@@ -272,8 +272,8 @@ class IntentHandlers:
         if not target_person_name:
             return False, "❌ Please specify who you'd like to follow up with. For example: 'follow up with John next week' or 'follow up with Sarah in 2 weeks'"
         
-        # Find the target person in the main people table
-        target_person = airtable.find_person_by_name(target_person_name)
+        # Find the target person in the reminders base people table
+        target_person = airtable.find_person_in_reminders_base(target_person_name)
         if not target_person:
             return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
         
