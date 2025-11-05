@@ -74,26 +74,55 @@ class IntentHandlers:
             if not target_person_name:
                 return False, "❌ Please specify whose information you want to update. For example: 'update John's birthday to 3/14/1999' or 'change Sarah's company to Tech Corp'"
             
-            # Find and update the person mentioned in the message
-            main_person_id = None
+            # Find and update the person mentioned in the message (supports first name matching)
             main_people = airtable.get_all_people()
+            matches = []
+            target_name_lower = target_person_name.lower().strip()
             
             for person in main_people:
                 fields = person.get("fields", {})
                 person_name = fields.get("Name", "")
-                if person_name.lower() == target_person_name.lower():
-                    main_person_id = person["id"]
-                    break
+                if not person_name:
+                    continue
+                
+                person_name_lower = person_name.lower()
+                
+                # Check for exact full name match or if query is contained in the full name
+                if person_name_lower == target_name_lower or target_name_lower in person_name_lower:
+                    matches.append(person)
+                    continue
+                
+                # Check if query matches first name
+                first_name = person_name_lower.split()[0] if person_name_lower.split() else ""
+                if first_name == target_name_lower:
+                    matches.append(person)
             
-            if not main_person_id:
+            if not matches:
                 return False, f"❌ I couldn't find a person named '{target_person_name}' in the system. Please check the spelling and try again."
             
-            success = airtable.update_person(main_person_id, updates)
-            if success:
-                updated_fields = list(updates.keys())
-                return True, f"✅ Updated {', '.join(updated_fields)} for {target_person_name}"
+            if len(matches) == 1:
+                # Single match - use it
+                main_person_id = matches[0]["id"]
+                actual_name = matches[0].get("fields", {}).get("Name", target_person_name)
+                
+                success = airtable.update_person(main_person_id, updates)
+                if success:
+                    updated_fields = list(updates.keys())
+                    return True, f"✅ Updated {', '.join(updated_fields)} for {actual_name}"
+                else:
+                    return False, f"❌ I couldn't update {actual_name}'s information in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
             else:
-                return False, f"❌ I couldn't update {target_person_name}'s information in the system. This might be due to a connection issue. Please try again or contact support if the problem persists."
+                # Multiple matches - ask user to confirm which one
+                response = f"❓ I found {len(matches)} people named '{target_person_name}'. Which one did you mean?\n\n"
+                for i, person in enumerate(matches, 1):
+                    person_name = person.get("fields", {}).get("Name", "Unknown")
+                    person_email = person.get("fields", {}).get("Email", "No email")
+                    response += f"{i}. {person_name}"
+                    if person_email and person_email != "No email":
+                        response += f" ({person_email})"
+                    response += "\n"
+                response += "\nPlease reply with the number (1, 2, etc.) or the full name."
+                return False, response
         
         return False, "❌ I couldn't determine what information you'd like me to update. Please be specific, like 'update John's birthday to 03/14/1999' or 'change Sarah's company to Tech Corp'"
     
@@ -225,12 +254,28 @@ class IntentHandlers:
         # If there's a target person, find them first
         target_person_id = person_id  # Default to current person
         if target_person_name:
-            # Find the target person in the notes base people table
-            target_person = airtable.find_person_in_notes_base(target_person_name)
-            if target_person:
-                target_person_id = target_person["id"]
-            else:
+            # Find all matching people in the notes base people table (supports first name matching)
+            matches = airtable.find_people_in_notes_base(target_person_name)
+            
+            if not matches:
                 return False, f"❌ I couldn't find '{target_person_name}' in your contacts. Please check the spelling or add them first."
+            
+            if len(matches) == 1:
+                # Single match - use it
+                target_person_id = matches[0]["id"]
+                target_person_name = matches[0].get("fields", {}).get("Name", target_person_name)
+            else:
+                # Multiple matches - ask user to confirm which one
+                response = f"❓ I found {len(matches)} people named '{target_person_name}'. Which one did you mean?\n\n"
+                for i, person in enumerate(matches, 1):
+                    person_name = person.get("fields", {}).get("Name", "Unknown")
+                    person_email = person.get("fields", {}).get("Email", "No email")
+                    response += f"{i}. {person_name}"
+                    if person_email and person_email != "No email":
+                        response += f" ({person_email})"
+                    response += "\n"
+                response += "\nPlease reply with the number (1, 2, etc.) or the full name."
+                return False, response
         
         # Create note record
         note_data = {
@@ -389,7 +434,9 @@ class IntentHandlers:
             from .intent_classifier import match_name_to_person
             
             for term in query_terms:
-                # Use AI matching for all queries
+                term_lower = term.lower().strip()
+                
+                # First try AI matching
                 matched_name = match_name_to_person(term, all_person_names)
                 
                 if matched_name and matched_name in person_map:
@@ -405,6 +452,30 @@ class IntentHandlers:
                         "birthday": fields.get("Birthday", "No birthday"),
                         "tags": fields.get("Tags", [])
                     })
+                
+                # Also check for first name matches (to catch all people with same first name)
+                for person in all_people:
+                    fields = person.get("fields", {})
+                    person_name = fields.get("Name", "")
+                    if not person_name:
+                        continue
+                    
+                    person_name_lower = person_name.lower()
+                    first_name = person_name_lower.split()[0] if person_name_lower.split() else ""
+                    
+                    # If query matches first name, add to matches
+                    if first_name == term_lower:
+                        # Check if already added
+                        if not any(m.get("name") == person_name for m in matches):
+                            matches.append({
+                                "name": person_name,
+                                "email": fields.get("Email", "No email"),
+                                "phone": fields.get("Phone", "No phone"),
+                                "company": fields.get("Company", "No company"),
+                                "role": fields.get("Role", "No role"),
+                                "birthday": fields.get("Birthday", "No birthday"),
+                                "tags": fields.get("Tags", [])
+                            })
             
             if not matches:
                 return True, f"❌ No people found matching: {', '.join(query_terms)}"
@@ -421,9 +492,12 @@ class IntentHandlers:
                     response += f"🏷️ Tags: {', '.join(person['tags'])}"
                 return True, response
             else:
-                response = f"✅ Found {len(matches)} people matching: {', '.join(query_terms)}\n\n"
+                response = f"✅ Found {len(matches)} people matching '{', '.join(query_terms)}':\n\n"
                 for i, person in enumerate(matches, 1):
-                    response += f"{i}. {person['name']} ({person['email']})\n"
+                    response += f"{i}. {person['name']}"
+                    if person['email'] and person['email'] != "No email":
+                        response += f" ({person['email']})"
+                    response += "\n"
                 return True, response
                 
         except Exception as e:

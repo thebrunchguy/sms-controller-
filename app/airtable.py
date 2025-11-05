@@ -516,11 +516,33 @@ def find_person_in_notes_base(person_name: str) -> Optional[Dict[str, Any]]:
         records = response.get("records", [])
         if records:
             return records[0]  # Return first match
-        
+            
         return None
+        
     except Exception as e:
         print(f"Error finding person in notes base: {e}")
         return None
+
+def find_people_in_notes_base(person_name: str) -> List[Dict[str, Any]]:
+    """Find all people matching the name (returns all matches, not just first)"""
+    try:
+        endpoint = f"{AIRTABLE_NOTES_MAIN_PEOPLE_TABLE}"
+        params = {"filterByFormula": f"SEARCH(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_NOTES_BASE_URL)
+        
+        records = response.get("records", [])
+        if records:
+            return records
+        
+        # If no match with SEARCH, try FIND as fallback
+        params = {"filterByFormula": f"FIND(LOWER('{person_name.lower()}'), LOWER({{Name}}))"}
+        response = _make_request("GET", endpoint, params=params, base_url=AIRTABLE_NOTES_BASE_URL)
+        
+        return response.get("records", [])
+        
+    except Exception as e:
+        print(f"Error finding people in notes base: {e}")
+        return []
 
 def find_person_in_main_base(person_name: str) -> Optional[Dict[str, Any]]:
     """Find a person in the main base people table by name"""
