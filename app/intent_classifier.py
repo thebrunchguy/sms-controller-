@@ -62,6 +62,7 @@ INTENT_CLASSIFICATION_SCHEMA = {
                 "note_content": {"type": "string"},
                 "followup_timeline": {"type": "string"},
                 "followup_reason": {"type": "string"},
+                "friend_name": {"type": "string"},
                 "query_type": {"type": "string"},
                 "query_terms": {"type": "array", "items": {"type": "string"}}
             }
@@ -127,7 +128,7 @@ Extract relevant data based on the intent:
 - For create_reminder: extract reminder_action, reminder_timeline, and reminder_priority. If the action mentions a specific person, extract target_person_name. Examples: "remind me to call John tomorrow" → target_person_name: "John"
 - For create_note: extract target_person_name (the person the note is about) AND note_content. NEVER use the current person context - the texter is always adding notes about someone else. If no specific person is mentioned, classify as "unclear". Examples: "add a note to John about crypto interest", "note: Sarah mentioned PM role"
 - For schedule_followup: extract target_person_name (who to follow up with) AND followup_timeline and followup_reason. NEVER use the current person context - the texter is always scheduling follow-ups with someone else. If no specific person is mentioned, classify as "unclear". Examples: "follow up with John next week", "schedule follow-up with Sarah about project"
-- For new_friend: extract friend_name from messages like "new friend John Smith", "met Sarah Johnson", "introduce Mike Wilson"
+- For new_friend: ALWAYS extract friend_name as the complete name of the person to add. Extract the full name even from partial messages. Examples: "new friend John Smith" → friend_name: "John Smith", "add Jen H" → friend_name: "Jen H", "met Sarah Johnson" → friend_name: "Sarah Johnson", "introduce Mike Wilson" → friend_name: "Mike Wilson", "add David" → friend_name: "David". The friend_name should be the complete name of the person being added, extracted from the message text. If the message contains phrases like "new friend", "add", "met", "introduce", or similar, extract the person's name that follows.
 - For query_data: extract query_type (people, reminders, notes, checkins, etc.) and query_terms as an ARRAY of strings (person names, keywords, etc.). Examples: "Is David Kobrosky in here" → query_terms: ["David Kobrosky"], "Do I have any reminders about David?" → query_terms: ["David"], "What notes do I have about Sarah?" → query_terms: ["Sarah"]
 
 Return a JSON object with the intent, confidence (0-1), target_table, and extracted_data."""
@@ -166,3 +167,69 @@ Return a JSON object with the intent, confidence (0-1), target_table, and extrac
                 "error_message": f"OpenAI classification error: {str(e)}"
             }
         }
+
+# =============================================================================
+# NAME MATCHING
+# =============================================================================
+
+def match_name_to_person(query_name: str, person_names: list) -> Optional[str]:
+    """
+    Use AI to match a query name to the best matching person name from a list.
+    Handles partial names, abbreviations, and variations.
+    
+    Args:
+        query_name: The name being searched for (e.g., "Jen H")
+        person_names: List of full person names to match against (e.g., ["Jen H Smith", "John Doe"])
+        
+    Returns:
+        The best matching person name, or None if no good match
+    """
+    if not OPENAI_API_KEY or not person_names:
+        return None
+    
+    if not query_name:
+        return None
+    
+    try:
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        
+        prompt = f"""You are a name matching system. Match the query name to the best matching person from the list.
+
+Query name: "{query_name}"
+Available person names: {json.dumps(person_names, indent=2)}
+
+Rules:
+- Match partial names (e.g., "Jen H" should match "Jen H Smith")
+- Match abbreviations (e.g., "Jen H" should match "Jennifer H. Smith")
+- Match nicknames and variations
+- Only return a match if you're confident (confidence > 0.7)
+- Return the EXACT name from the list if there's a match
+- Return null if no good match exists
+
+Return a JSON object with:
+- "match": the matched person name (exact from list) or null
+- "confidence": 0.0 to 1.0
+- "reason": brief explanation of why this match was chosen"""
+        
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=200
+        )
+        
+        content = response.choices[0].message.content
+        result = json.loads(content)
+        
+        match = result.get("match")
+        confidence = result.get("confidence", 0.0)
+        
+        if match and confidence > 0.7:
+            return match
+        else:
+            return None
+            
+    except Exception as e:
+        print(f"Error in AI name matching: {e}")
+        return None

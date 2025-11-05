@@ -325,9 +325,9 @@ class IntentHandlers:
         # Create new person with just the name
         person_id = airtable.create_person({"Name": friend_name})
         if person_id:
-            # Add small delay to ensure Airtable has processed the write
+            # Add delay to ensure Airtable has processed the write and is available for queries
             import time
-            time.sleep(0.5)
+            time.sleep(1.5)  # Increased delay to ensure Airtable sync
             return True, f"✅ Added new friend '{friend_name}' to Airtable"
         else:
             return False, f"❌ Failed to create new friend '{friend_name}'"
@@ -370,28 +370,41 @@ class IntentHandlers:
     
     @staticmethod
     def _query_people(query_terms: list) -> Tuple[bool, str]:
-        """Query people in the main people table"""
+        """Query people in the main people table using AI for name matching"""
         try:
             all_people = airtable.get_all_people()
             matches = []
             
+            # Get all person names for AI matching
+            all_person_names = []
+            person_map = {}
             for person in all_people:
                 fields = person.get("fields", {})
                 person_name = fields.get("Name", "")
+                if person_name:
+                    all_person_names.append(person_name)
+                    person_map[person_name] = person
+            
+            # Use AI to match each query term
+            from .intent_classifier import match_name_to_person
+            
+            for term in query_terms:
+                # Use AI matching for all queries
+                matched_name = match_name_to_person(term, all_person_names)
                 
-                # Check if any query term matches the person's name (case-insensitive)
-                for term in query_terms:
-                    if term.lower() in person_name.lower():
-                        matches.append({
-                            "name": person_name,
-                            "email": fields.get("Email", "No email"),
-                            "phone": fields.get("Phone", "No phone"),
-                            "company": fields.get("Company", "No company"),
-                            "role": fields.get("Role", "No role"),
-                            "birthday": fields.get("Birthday", "No birthday"),
-                            "tags": fields.get("Tags", [])
-                        })
-                        break
+                if matched_name and matched_name in person_map:
+                    # Found a match via AI
+                    person = person_map[matched_name]
+                    fields = person.get("fields", {})
+                    matches.append({
+                        "name": matched_name,
+                        "email": fields.get("Email", "No email"),
+                        "phone": fields.get("Phone", "No phone"),
+                        "company": fields.get("Company", "No company"),
+                        "role": fields.get("Role", "No role"),
+                        "birthday": fields.get("Birthday", "No birthday"),
+                        "tags": fields.get("Tags", [])
+                    })
             
             if not matches:
                 return True, f"❌ No people found matching: {', '.join(query_terms)}"

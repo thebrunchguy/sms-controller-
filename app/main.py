@@ -1,13 +1,36 @@
 import os
 import json
 import httpx
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from . import compose, airtable, twilio_utils, scheduler, admin_sms, intent_classifier, intent_handlers
 
 app = FastAPI()
+
+# =============================================================================
+# IDEMPOTENCY TRACKING
+# =============================================================================
+
+# Track processed MessageSids to prevent duplicate processing
+# Store as set of (message_sid, timestamp) tuples, cleaned up periodically
+_processed_messages: Dict[str, datetime] = {}
+
+def _is_message_processed(message_sid: str) -> bool:
+    """Check if a message has already been processed"""
+    return message_sid in _processed_messages
+
+def _mark_message_processed(message_sid: str):
+    """Mark a message as processed"""
+    _processed_messages[message_sid] = datetime.now()
+
+def _cleanup_old_messages():
+    """Remove messages older than 24 hours to prevent memory leak"""
+    cutoff = datetime.now() - timedelta(hours=24)
+    to_remove = [sid for sid, timestamp in _processed_messages.items() if timestamp < cutoff]
+    for sid in to_remove:
+        del _processed_messages[sid]
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -134,6 +157,17 @@ def send_monthly():
 async def inbound(request: Request, From: str = Form(...), Body: str = Form(...), MessageSid: str = Form(...)):
     """Handle inbound SMS from Twilio"""
     try:
+        # Clean up old messages periodically
+        _cleanup_old_messages()
+        
+        # Check if this message has already been processed (idempotency)
+        if _is_message_processed(MessageSid):
+            print(f"⚠️ Duplicate message detected, skipping: {MessageSid}")
+            return {"ok": True, "message": "Message already processed"}
+        
+        # Mark message as processed
+        _mark_message_processed(MessageSid)
+        
         # Clean phone number (remove +1 prefix if present)
         from_phone = From.replace("+1", "") if From.startswith("+1") else From
         
@@ -318,6 +352,12 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
             
         else:
             # Handle free-text updates via intent classification
+            # Ensure we always send a response, even if there's an error
+            response_message = ""
+            intent = "unclear"
+            success = False
+            target_table = "None"
+            
             try:
                 # Classify the intent
                 classification = intent_classifier.classify_intent(Body, person_fields)
@@ -331,68 +371,53 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                 
                 if confidence < 0.6:
                     # Low confidence - ask for clarification
-                    clarification_message = "I'm not sure I understood your message. Could you please rephrase or provide more details?"
-                    
-                    twilio_utils.send_sms(
-                        to=from_phone,
-                        body=clarification_message,
-                        status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-                    )
-                    
-                    # Log outbound message
-                    airtable.log_message(
-                        checkin_id=checkin_id,
-                        direction="Outbound",
-                        from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                        body=clarification_message,
-                        twilio_sid=""
-                    )
-                    
-                    return {"ok": True, "message": "Low confidence, clarification requested"}
-                
-                # Route to appropriate handler based on intent
-                success = False
-                response_message = ""
-                
-                if intent == "update_person_info":
-                    success, response_message = intent_handlers.IntentHandlers.handle_update_person_info(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "manage_tags":
-                    success, response_message = intent_handlers.IntentHandlers.handle_manage_tags(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "create_reminder":
-                    success, response_message = intent_handlers.IntentHandlers.handle_create_reminder(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "create_note":
-                    success, response_message = intent_handlers.IntentHandlers.handle_create_note(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "schedule_followup":
-                    success, response_message = intent_handlers.IntentHandlers.handle_schedule_followup(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "new_friend":
-                    success, response_message = intent_handlers.IntentHandlers.handle_new_friend(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "query_data":
-                    success, response_message = intent_handlers.IntentHandlers.handle_query_data(
-                        extracted_data, person_id, person_fields
-                    )
-                elif intent == "unclear":
-                    # Check if there's a custom error message from the intent classifier
-                    error_message = extracted_data.get("error_message", "")
-                    if error_message:
-                        response_message = error_message
-                    else:
-                        response_message = "I received your message but couldn't understand what you'd like me to do. Please try rephrasing with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
+                    response_message = "I'm not sure I understood your message. Could you please rephrase or provide more details?"
                 else:
-                    response_message = "I'm not sure how to help with that. Please try rephrasing your message with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
+                    # Route to appropriate handler based on intent
+                    if intent == "update_person_info":
+                        success, response_message = intent_handlers.IntentHandlers.handle_update_person_info(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "manage_tags":
+                        success, response_message = intent_handlers.IntentHandlers.handle_manage_tags(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "create_reminder":
+                        success, response_message = intent_handlers.IntentHandlers.handle_create_reminder(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "create_note":
+                        success, response_message = intent_handlers.IntentHandlers.handle_create_note(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "schedule_followup":
+                        success, response_message = intent_handlers.IntentHandlers.handle_schedule_followup(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "new_friend":
+                        success, response_message = intent_handlers.IntentHandlers.handle_new_friend(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "query_data":
+                        success, response_message = intent_handlers.IntentHandlers.handle_query_data(
+                            extracted_data, person_id, person_fields
+                        )
+                    elif intent == "unclear":
+                        # Check if there's a custom error message from the intent classifier
+                        error_message = extracted_data.get("error_message", "")
+                        if error_message:
+                            response_message = error_message
+                        else:
+                            response_message = "I received your message but couldn't understand what you'd like me to do. Please try rephrasing with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
+                    else:
+                        response_message = "I'm not sure how to help with that. Please try rephrasing your message with specific actions like 'remind me to...', 'update my...', or 'add a note...'"
                 
-                # Send response
+            except Exception as e:
+                print(f"Error in intent classification: {e}")
+                response_message = "I received your message but had trouble processing it. Please try again or reply 'No change' if nothing has changed."
+            
+            # Always send response (guaranteed to have a message at this point)
+            if response_message:
                 twilio_utils.send_sms(
                     to=from_phone,
                     body=response_message,
@@ -413,30 +438,8 @@ async def inbound(request: Request, From: str = Form(...), Body: str = Form(...)
                     checkin_id=checkin_id,
                     message=f"Intent: {intent}, Target: {target_table}, Success: {success}"
                 )
-                
-                return {"ok": True, "message": f"Intent {intent} handled: {response_message}"}
-                
-            except Exception as e:
-                print(f"Error in intent classification: {e}")
-                # Fallback message
-                fallback_message = "I received your message but had trouble processing it. Please try again or reply 'No change' if nothing has changed."
-                
-                twilio_utils.send_sms(
-                    to=from_phone,
-                    body=fallback_message,
-                    status_callback_url=f"{os.getenv('APP_BASE_URL', 'http://localhost:8000')}/twilio/status"
-                )
-                
-                # Log outbound message
-                airtable.log_message(
-                    checkin_id=checkin_id,
-                    direction="Outbound",
-                    from_number=os.getenv("TWILIO_PHONE_NUMBER", ""),
-                    body=fallback_message,
-                    twilio_sid=""
-                )
-                
-                return {"ok": True, "message": "Intent classification error, fallback message sent"}
+            
+            return {"ok": True, "message": f"Intent {intent} handled: {response_message}"}
         
     except Exception as e:
         print(f"Error in inbound SMS handler: {e}")
