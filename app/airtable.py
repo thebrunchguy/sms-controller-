@@ -232,10 +232,27 @@ def create_person(fields: Dict[str, Any]) -> Optional[str]:
             }]
         }
         
+        print(f"🔧 Creating person with fields: {fields}")
         response = _make_request("POST", AIRTABLE_PEOPLE_TABLE, data)
-        return response["records"][0]["id"]
+        
+        if not response or "records" not in response or len(response["records"]) == 0:
+            print(f"❌ Error: Invalid response from Airtable: {response}")
+            return None
+        
+        person_id = response["records"][0]["id"]
+        print(f"✅ Successfully created person with ID: {person_id}")
+        return person_id
+        
+    except KeyError as e:
+        print(f"❌ Error: Missing key in response: {e}, Response: {response if 'response' in locals() else 'N/A'}")
+        return None
+    except IndexError as e:
+        print(f"❌ Error: No records in response: {e}, Response: {response if 'response' in locals() else 'N/A'}")
+        return None
     except Exception as e:
-        print(f"Error creating person: {e}")
+        print(f"❌ Error creating person: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 # =============================================================================
